@@ -1,0 +1,8 @@
+/target
+android/.gradle
+android/build
+android/chatcrypto/build
+android/chatcrypto/src/main/jniLibs
+android/chatcrypto/src/main/java
+android/local.properties
+/dist

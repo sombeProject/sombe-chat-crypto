@@ -1,0 +1,41 @@
+[package]
+name = "sombe-chat-crypto"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.89"
+license = "Apache-2.0"
+description = "End-to-end encryption layer for SOMBE ChatPay, built on vodozemac (Olm)."
+repository = "https://github.com/sombeProject/sombe-chat-crypto"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "sombe_chat_crypto"
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[[bin]]
+name = "make-vectors"
+path = "tools/make_vectors.rs"
+
+[features]
+bindgen = ["uniffi/cli"]
+
+[dependencies]
+# libolm-compat is off: SOMBE never imports libolm pickles.
+vodozemac = { version = "=0.11.1", default-features = false, features = ["precomputed-tables"] }
+uniffi = "=0.32.2"
+bs58 = "0.5.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+zeroize = "1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
