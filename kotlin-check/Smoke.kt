@@ -35,6 +35,24 @@ fun main() {
 
     val received = bob.decryptFrom(alice.identityKeys(), emptyList(), first.envelope, key)
     check(decodeContent(received.plaintext) == content, "bob reads alice's first message")
+    check(content.editsMessageId == null, "a text built without editsMessageId (as in 0.1.0) still works")
+
+    val edit = MessageContent(
+        conversationId = content.conversationId,
+        clientMessageId = "2d9a6f8c-5e3b-4a0c-9f4d-7b8c9e0f1a23",
+        kind = ContentKind.EDIT,
+        body = "Salut ! Tu es rentrée ?",
+        replyExcerpt = null,
+        comment = null,
+        editsMessageId = "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
+    )
+    check(decodeContent(encodeContent(edit)) == edit, "an edit round trips")
+    try {
+        encodeContent(edit.copy(editsMessageId = null))
+        check(false, "an edit without target must throw")
+    } catch (e: ChatCryptoException.InvalidContent) {
+        check(true, "an edit without edits_message_id is refused")
+    }
     check(received.newSession && received.accountChanged, "a new inbound session was opened")
 
     val reply = bob.encryptFor(alice.identityKeys(), received.session, null, "Oui", key)

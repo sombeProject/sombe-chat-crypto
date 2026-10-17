@@ -15,6 +15,8 @@ pub const MAX_COMMENT_CHARS: usize = 500;
 pub enum ContentKind {
     Text,
     Payment,
+    /// Replaces the body of an earlier text by the same sender (`edits_message_id`).
+    Edit,
 }
 
 #[derive(uniffi::Record, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -28,6 +30,11 @@ pub struct MessageContent {
     pub reply_excerpt: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
+    /// Server id of the text an `edit` corrects; absent for every other kind. Last, with a
+    /// default, so positional constructors from 0.1.0 keep their meaning.
+    #[uniffi(default = None)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edits_message_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -64,10 +71,28 @@ fn validate(content: &MessageContent) -> Result<(), ChatCryptoError> {
             if content.comment.is_some() {
                 return Err(invalid("text carries no comment"));
             }
+            if content.edits_message_id.is_some() {
+                return Err(invalid("only an edit names edits_message_id"));
+            }
+        }
+        ContentKind::Edit => {
+            if content.edits_message_id.as_deref().unwrap_or("").is_empty() {
+                return Err(invalid("edit needs edits_message_id"));
+            }
+            let body = content.body.as_deref().unwrap_or("");
+            if body.trim().is_empty() || body.chars().count() > MAX_BODY_CHARS {
+                return Err(invalid("edit needs a body of 1 to 4000 characters"));
+            }
+            if content.reply_excerpt.is_some() || content.comment.is_some() {
+                return Err(invalid("edit carries neither reply_excerpt nor comment"));
+            }
         }
         ContentKind::Payment => {
             if content.body.is_some() || content.reply_excerpt.is_some() {
                 return Err(invalid("payment carries only a comment"));
+            }
+            if content.edits_message_id.is_some() {
+                return Err(invalid("only an edit names edits_message_id"));
             }
             if content.comment.as_deref().is_some_and(|c| c.chars().count() > MAX_COMMENT_CHARS) {
                 return Err(invalid("comment is too long"));

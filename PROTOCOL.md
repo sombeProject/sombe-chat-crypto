@@ -74,9 +74,22 @@ The plaintext inside the ciphertext is JSON:
 {"v":1,"conversation_id":"…","client_message_id":"…","kind":"text","body":"…","reply_excerpt":"…"}
 ```
 
-- `kind` is `text` or `payment`. A text has a `body` (1 to 4000 characters) and may
-  carry `reply_excerpt` (at most 200 characters, the quoted message as the sender saw it).
-  A payment carries only an optional `comment` (at most 500 characters).
+- `kind` is `text`, `payment` or (since 0.2.0) `edit`. A text has a `body` (1 to 4000
+  characters) and may carry `reply_excerpt` (at most 200 characters, the quoted message
+  as the sender saw it). A payment carries only an optional `comment` (at most 500
+  characters).
+- An `edit` corrects an earlier text. It has a `body` (1 to 4000 characters, the new
+  text) and `edits_message_id`, the server id of the corrected text, and carries neither
+  `reply_excerpt` nor `comment`. No other kind may carry `edits_message_id`:
+
+  ```json
+  {"v":1,"conversation_id":"…","client_message_id":"…","kind":"edit","body":"…","edits_message_id":"…"}
+  ```
+
+  `edits_message_id` must equal the one on the server row, like the two other ids. A
+  phone applies an edit only when its sender also wrote the corrected text, in the same
+  conversation, so a server cannot point a correction at another message. A phone built
+  before 0.2.0 refuses an `edit` as unreadable content.
 - `conversation_id` and `client_message_id` must equal the server row the message
   came with. A phone refuses content that does not match, so the server can neither
   move a message to another conversation nor replay it as a new one.

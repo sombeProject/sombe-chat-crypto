@@ -245,6 +245,7 @@ fn content_round_trip_and_rules() {
         body: Some("Bonjour".into()),
         reply_excerpt: Some("Dimanche à midi".into()),
         comment: None,
+        edits_message_id: None,
     };
     let json = encode_content(content.clone()).unwrap();
     assert_eq!(
@@ -273,4 +274,53 @@ fn content_round_trip_and_rules() {
     )
     .is_err());
     assert!(decode_content("not json".into()).is_err());
+}
+
+#[test]
+fn edit_content_rules() {
+    let edit = MessageContent {
+        conversation_id: "6f1c2a8e-0000-4000-8000-000000000001".into(),
+        client_message_id: "6f1c2a8e-0000-4000-8000-000000000003".into(),
+        kind: ContentKind::Edit,
+        body: Some("Je t’envoie pour le marché".into()),
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: Some("6f1c2a8e-0000-4000-8000-000000000002".into()),
+    };
+    let json = encode_content(edit.clone()).unwrap();
+    assert_eq!(
+        json,
+        r#"{"v":1,"conversation_id":"6f1c2a8e-0000-4000-8000-000000000001","client_message_id":"6f1c2a8e-0000-4000-8000-000000000003","kind":"edit","body":"Je t’envoie pour le marché","edits_message_id":"6f1c2a8e-0000-4000-8000-000000000002"}"#
+    );
+    assert_eq!(decode_content(json).unwrap(), edit);
+
+    let no_target = MessageContent { edits_message_id: None, ..edit.clone() };
+    assert!(encode_content(no_target).is_err());
+    let empty_target = MessageContent { edits_message_id: Some(String::new()), ..edit.clone() };
+    assert!(encode_content(empty_target).is_err());
+    let blank = MessageContent { body: Some(" ".into()), ..edit.clone() };
+    assert!(encode_content(blank).is_err());
+    let too_long = MessageContent { body: Some("é".repeat(4001)), ..edit.clone() };
+    assert!(encode_content(too_long).is_err());
+    let longest = MessageContent { body: Some("é".repeat(4000)), ..edit.clone() };
+    assert!(encode_content(longest).is_ok());
+    let quoted = MessageContent { reply_excerpt: Some("Dimanche".into()), ..edit.clone() };
+    assert!(encode_content(quoted).is_err());
+    let commented = MessageContent { comment: Some("x".into()), ..edit.clone() };
+    assert!(encode_content(commented).is_err());
+
+    let text_with_target = MessageContent { kind: ContentKind::Text, ..edit.clone() };
+    assert!(encode_content(text_with_target).is_err());
+    let payment_with_target =
+        MessageContent { kind: ContentKind::Payment, body: None, comment: Some("x".into()), ..edit };
+    assert!(encode_content(payment_with_target).is_err());
+    assert!(decode_content(
+        r#"{"v":1,"conversation_id":"a","client_message_id":"b","kind":"text","body":"x","edits_message_id":"c"}"#
+            .into()
+    )
+    .is_err());
+    assert!(decode_content(
+        r#"{"v":1,"conversation_id":"a","client_message_id":"b","kind":"edit","body":"x"}"#.into()
+    )
+    .is_err());
 }

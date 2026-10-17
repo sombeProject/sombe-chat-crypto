@@ -88,3 +88,20 @@ fn first_message_decrypts_with_the_pickled_account() {
     assert_eq!(content.kind, ContentKind::Text);
     assert_eq!(content.body.as_deref(), Some("Salut ! Tu es rentré ?"));
 }
+
+#[test]
+fn edit_content_is_reproducible() {
+    let v = vectors();
+    let e = &v["edit_content"];
+    let content = MessageContent {
+        conversation_id: s(&e["conversation_id"]),
+        client_message_id: s(&e["client_message_id"]),
+        kind: ContentKind::Edit,
+        body: Some(s(&e["body"])),
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: Some(s(&e["edits_message_id"])),
+    };
+    assert_eq!(encode_content(content.clone()).unwrap(), s(&e["plaintext"]));
+    assert_eq!(decode_content(s(&e["plaintext"])).unwrap(), content);
+}
