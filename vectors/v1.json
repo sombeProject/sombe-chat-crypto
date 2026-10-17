@@ -38,5 +38,12 @@
     "edits_message_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
     "body": "Salut ! Tu es rentrée ?",
     "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"2d9a6f8c-5e3b-4a0c-9f4d-7b8c9e0f1a23\",\"kind\":\"edit\",\"body\":\"Salut ! Tu es rentrée ?\",\"edits_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\"}"
+  },
+  "reaction_content": {
+    "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
+    "client_message_id": "4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45",
+    "reacts_to_message_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
+    "body": "❤️",
+    "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45\",\"kind\":\"reaction\",\"body\":\"❤️\",\"reacts_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\"}"
   }
 }

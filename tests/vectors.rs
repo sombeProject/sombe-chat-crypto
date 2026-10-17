@@ -101,7 +101,26 @@ fn edit_content_is_reproducible() {
         reply_excerpt: None,
         comment: None,
         edits_message_id: Some(s(&e["edits_message_id"])),
+        reacts_to_message_id: None,
     };
     assert_eq!(encode_content(content.clone()).unwrap(), s(&e["plaintext"]));
     assert_eq!(decode_content(s(&e["plaintext"])).unwrap(), content);
+}
+
+#[test]
+fn reaction_content_is_reproducible() {
+    let v = vectors();
+    let r = &v["reaction_content"];
+    let content = MessageContent {
+        conversation_id: s(&r["conversation_id"]),
+        client_message_id: s(&r["client_message_id"]),
+        kind: ContentKind::Reaction,
+        body: Some(s(&r["body"])),
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: None,
+        reacts_to_message_id: Some(s(&r["reacts_to_message_id"])),
+    };
+    assert_eq!(encode_content(content.clone()).unwrap(), s(&r["plaintext"]));
+    assert_eq!(decode_content(s(&r["plaintext"])).unwrap(), content);
 }

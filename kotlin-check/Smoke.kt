@@ -53,6 +53,24 @@ fun main() {
     } catch (e: ChatCryptoException.InvalidContent) {
         check(true, "an edit without edits_message_id is refused")
     }
+    check(edit.reactsToMessageId == null, "an edit built without reactsToMessageId still works")
+
+    val reaction = MessageContent(
+        conversationId = content.conversationId,
+        clientMessageId = "4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45",
+        kind = ContentKind.REACTION,
+        body = "❤️",
+        replyExcerpt = null,
+        comment = null,
+        reactsToMessageId = "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
+    )
+    check(decodeContent(encodeContent(reaction)) == reaction, "a reaction round trips")
+    try {
+        encodeContent(reaction.copy(body = "👍 👍"))
+        check(false, "a reaction with a space must throw")
+    } catch (e: ChatCryptoException.InvalidContent) {
+        check(true, "a reaction with a space is refused")
+    }
     check(received.newSession && received.accountChanged, "a new inbound session was opened")
 
     val reply = bob.encryptFor(alice.identityKeys(), received.session, null, "Oui", key)

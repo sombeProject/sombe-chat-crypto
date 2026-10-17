@@ -1,6 +1,6 @@
 //! Writes vectors/v1.json: fixed inputs and outputs any implementation of PROTOCOL.md
 //! must reproduce (wallet signature, statement, one time key signature, content, an edit
-//! content (since 0.2.0), and a first message that decrypts with the pickled account). Run once; the file is
+//! and a reaction content (since 0.2.0), and a first message that decrypts with the pickled account). Run once; the file is
 //! committed and checked by tests/vectors.rs. Never use these keys for anything real.
 
 use serde_json::json;
@@ -30,6 +30,7 @@ fn main() {
         reply_excerpt: None,
         comment: None,
         edits_message_id: None,
+        reacts_to_message_id: None,
     };
     let plaintext = encode_content(content).unwrap();
 
@@ -41,8 +42,21 @@ fn main() {
         reply_excerpt: None,
         comment: None,
         edits_message_id: Some("3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34".into()),
+        reacts_to_message_id: None,
     };
     let edit_plaintext = encode_content(edit.clone()).unwrap();
+
+    let reaction = MessageContent {
+        conversation_id: "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01".into(),
+        client_message_id: "4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45".into(),
+        kind: ContentKind::Reaction,
+        body: Some("❤️".into()),
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: None,
+        reacts_to_message_id: Some("3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34".into()),
+    };
+    let reaction_plaintext = encode_content(reaction.clone()).unwrap();
 
     let alice = ChatCrypto::create_account();
     let first = alice
@@ -95,6 +109,13 @@ fn main() {
             "edits_message_id": edit.edits_message_id,
             "body": edit.body,
             "plaintext": edit_plaintext,
+        },
+        "reaction_content": {
+            "conversation_id": reaction.conversation_id,
+            "client_message_id": reaction.client_message_id,
+            "reacts_to_message_id": reaction.reacts_to_message_id,
+            "body": reaction.body,
+            "plaintext": reaction_plaintext,
         },
     });
 

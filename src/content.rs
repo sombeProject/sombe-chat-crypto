@@ -9,6 +9,7 @@ pub const CONTENT_VERSION: u32 = 1;
 pub const MAX_BODY_CHARS: usize = 4000;
 pub const MAX_REPLY_EXCERPT_CHARS: usize = 200;
 pub const MAX_COMMENT_CHARS: usize = 500;
+pub const MAX_REACTION_CHARS: usize = 16;
 
 #[derive(uniffi::Enum, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -17,6 +18,8 @@ pub enum ContentKind {
     Payment,
     /// Replaces the body of an earlier text by the same sender (`edits_message_id`).
     Edit,
+    /// One emoji set on a text (`reacts_to_message_id`). Removing it is never encrypted.
+    Reaction,
 }
 
 #[derive(uniffi::Record, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -35,6 +38,11 @@ pub struct MessageContent {
     #[uniffi(default = None)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub edits_message_id: Option<String>,
+    /// Server id of the text a `reaction` is set on; absent for every other kind. Added in
+    /// 0.2.0 after `edits_message_id`, with a default, for the same reason.
+    #[uniffi(default = None)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reacts_to_message_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -62,6 +70,9 @@ fn validate(content: &MessageContent) -> Result<(), ChatCryptoError> {
     if content.conversation_id.is_empty() || content.client_message_id.is_empty() {
         return Err(invalid("conversation_id and client_message_id are required"));
     }
+    if content.kind != ContentKind::Reaction && content.reacts_to_message_id.is_some() {
+        return Err(invalid("only a reaction names reacts_to_message_id"));
+    }
     match content.kind {
         ContentKind::Text => {
             let body = content.body.as_deref().unwrap_or("");
@@ -73,6 +84,22 @@ fn validate(content: &MessageContent) -> Result<(), ChatCryptoError> {
             }
             if content.edits_message_id.is_some() {
                 return Err(invalid("only an edit names edits_message_id"));
+            }
+        }
+        ContentKind::Reaction => {
+            if content.reacts_to_message_id.as_deref().unwrap_or("").is_empty() {
+                return Err(invalid("reaction needs reacts_to_message_id"));
+            }
+            let body = content.body.as_deref().unwrap_or("");
+            let chars = body.chars().count();
+            if chars == 0 || chars > MAX_REACTION_CHARS || body.chars().any(char::is_whitespace) {
+                return Err(invalid("reaction needs one emoji of 1 to 16 characters, without space"));
+            }
+            if content.reply_excerpt.is_some()
+                || content.comment.is_some()
+                || content.edits_message_id.is_some()
+            {
+                return Err(invalid("reaction carries neither reply_excerpt, comment nor edits_message_id"));
             }
         }
         ContentKind::Edit => {

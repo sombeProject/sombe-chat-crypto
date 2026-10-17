@@ -74,7 +74,7 @@ The plaintext inside the ciphertext is JSON:
 {"v":1,"conversation_id":"…","client_message_id":"…","kind":"text","body":"…","reply_excerpt":"…"}
 ```
 
-- `kind` is `text`, `payment` or (since 0.2.0) `edit`. A text has a `body` (1 to 4000
+- `kind` is `text`, `payment` or (since 0.2.0) `edit` or `reaction`. A text has a `body` (1 to 4000
   characters) and may carry `reply_excerpt` (at most 200 characters, the quoted message
   as the sender saw it). A payment carries only an optional `comment` (at most 500
   characters).
@@ -90,6 +90,21 @@ The plaintext inside the ciphertext is JSON:
   phone applies an edit only when its sender also wrote the corrected text, in the same
   conversation, so a server cannot point a correction at another message. A phone built
   before 0.2.0 refuses an `edit` as unreadable content.
+- A `reaction` (since 0.2.0) sets one emoji on a text. Its `body` is the emoji, 1 to 16
+  characters (code points) without any white space, and `reacts_to_message_id` is the
+  server id of that text. It carries neither `reply_excerpt`, `comment` nor
+  `edits_message_id`, and no other kind may carry `reacts_to_message_id`:
+
+  ```json
+  {"v":1,"conversation_id":"…","client_message_id":"…","kind":"reaction","body":"❤️","reacts_to_message_id":"…"}
+  ```
+
+  `reacts_to_message_id` must equal the one on the server row, so a server cannot move
+  a reaction to another message. Each person has at most one reaction per text: the
+  latest row wins. Removing it is a server row of kind `reaction_remove` that names the
+  same text and is never encrypted, so it has no content here. A server can therefore
+  invent a removal, but neither invent an emoji nor bring a removed reaction back. A
+  phone built before 0.2.0 refuses a `reaction` as unreadable content.
 - `conversation_id` and `client_message_id` must equal the server row the message
   came with. A phone refuses content that does not match, so the server can neither
   move a message to another conversation nor replay it as a new one.

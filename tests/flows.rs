@@ -246,6 +246,7 @@ fn content_round_trip_and_rules() {
         reply_excerpt: Some("Dimanche à midi".into()),
         comment: None,
         edits_message_id: None,
+        reacts_to_message_id: None,
     };
     let json = encode_content(content.clone()).unwrap();
     assert_eq!(
@@ -286,6 +287,7 @@ fn edit_content_rules() {
         reply_excerpt: None,
         comment: None,
         edits_message_id: Some("6f1c2a8e-0000-4000-8000-000000000002".into()),
+        reacts_to_message_id: None,
     };
     let json = encode_content(edit.clone()).unwrap();
     assert_eq!(
@@ -323,4 +325,91 @@ fn edit_content_rules() {
         r#"{"v":1,"conversation_id":"a","client_message_id":"b","kind":"edit","body":"x"}"#.into()
     )
     .is_err());
+}
+
+#[test]
+fn reaction_content_rules() {
+    let reaction = MessageContent {
+        conversation_id: "6f1c2a8e-0000-4000-8000-000000000001".into(),
+        client_message_id: "6f1c2a8e-0000-4000-8000-000000000004".into(),
+        kind: ContentKind::Reaction,
+        body: Some("❤️".into()),
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: None,
+        reacts_to_message_id: Some("6f1c2a8e-0000-4000-8000-000000000002".into()),
+    };
+    let json = encode_content(reaction.clone()).unwrap();
+    assert_eq!(
+        json,
+        r#"{"v":1,"conversation_id":"6f1c2a8e-0000-4000-8000-000000000001","client_message_id":"6f1c2a8e-0000-4000-8000-000000000004","kind":"reaction","body":"❤️","reacts_to_message_id":"6f1c2a8e-0000-4000-8000-000000000002"}"#
+    );
+    assert_eq!(decode_content(json).unwrap(), reaction);
+
+    // A family emoji is several code points joined, still one reaction.
+    let family = MessageContent { body: Some("👨‍👩‍👧‍👦".into()), ..reaction.clone() };
+    assert!(encode_content(family).is_ok());
+    let longest = MessageContent { body: Some("x".repeat(16)), ..reaction.clone() };
+    assert!(encode_content(longest).is_ok());
+    let too_long = MessageContent { body: Some("x".repeat(17)), ..reaction.clone() };
+    assert!(encode_content(too_long).is_err());
+    let empty = MessageContent { body: Some(String::new()), ..reaction.clone() };
+    assert!(encode_content(empty).is_err());
+    let missing = MessageContent { body: None, ..reaction.clone() };
+    assert!(encode_content(missing).is_err());
+    let spaced = MessageContent { body: Some("👍 ".into()), ..reaction.clone() };
+    assert!(encode_content(spaced).is_err());
+    let no_target = MessageContent { reacts_to_message_id: None, ..reaction.clone() };
+    assert!(encode_content(no_target).is_err());
+    let empty_target = MessageContent { reacts_to_message_id: Some(String::new()), ..reaction.clone() };
+    assert!(encode_content(empty_target).is_err());
+    let quoted = MessageContent { reply_excerpt: Some("Dimanche".into()), ..reaction.clone() };
+    assert!(encode_content(quoted).is_err());
+    let commented = MessageContent { comment: Some("x".into()), ..reaction.clone() };
+    assert!(encode_content(commented).is_err());
+    let editing = MessageContent { edits_message_id: Some("c".into()), ..reaction.clone() };
+    assert!(encode_content(editing).is_err());
+
+    let text_with_target = MessageContent { kind: ContentKind::Text, ..reaction.clone() };
+    assert!(encode_content(text_with_target).is_err());
+    let edit_with_target =
+        MessageContent { kind: ContentKind::Edit, edits_message_id: Some("c".into()), ..reaction.clone() };
+    assert!(encode_content(edit_with_target).is_err());
+    let payment_with_target =
+        MessageContent { kind: ContentKind::Payment, body: None, comment: Some("x".into()), ..reaction };
+    assert!(encode_content(payment_with_target).is_err());
+    assert!(decode_content(
+        r#"{"v":1,"conversation_id":"a","client_message_id":"b","kind":"text","body":"x","reacts_to_message_id":"c"}"#
+            .into()
+    )
+    .is_err());
+    assert!(decode_content(
+        r#"{"v":1,"conversation_id":"a","client_message_id":"b","kind":"reaction","body":"👍"}"#.into()
+    )
+    .is_err());
+}
+
+#[test]
+fn message_after_several_skipped_ones_still_decrypts() {
+    // A phone that ignored some messages (a kind it did not know yet) must still read the next.
+    let alice = device();
+    let bob = device();
+    let otk = bob.generate_one_time_keys(1).remove(0);
+    let first = alice.encrypt_for(bob.identity_keys(), None, Some(otk), "un".into(), key()).unwrap();
+    let opened = bob.decrypt_from(alice.identity_keys(), vec![], first.envelope, key()).unwrap();
+    let reply = bob
+        .encrypt_for(alice.identity_keys(), Some(opened.session.clone()), None, "oui".into(), key())
+        .unwrap();
+    let read = alice.decrypt_from(bob.identity_keys(), vec![first.session], reply.envelope, key()).unwrap();
+
+    let mut session = read.session;
+    for i in 0..5 {
+        session = alice
+            .encrypt_for(bob.identity_keys(), Some(session), None, format!("sauté {i}"), key())
+            .unwrap()
+            .session;
+    }
+    let next = alice.encrypt_for(bob.identity_keys(), Some(session), None, "lu".into(), key()).unwrap();
+    let got = bob.decrypt_from(alice.identity_keys(), vec![reply.session], next.envelope, key()).unwrap();
+    assert_eq!(got.plaintext, "lu");
 }
