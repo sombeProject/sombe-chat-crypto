@@ -23,7 +23,9 @@ version) and runs them on the JVM, then builds the Android AAR for `arm64-v8a`,
 ## Releases
 
 Pushing a tag `vX.Y.Z` (matching `Cargo.toml`) publishes a GitHub release with
-`sombe-chat-crypto-X.Y.Z.aar` and its SHA-256. The SOMBE app pins that SHA-256 and its
+`sombe-chat-crypto-X.Y.Z.aar` and its SHA-256. Publishing a release `vX.Y.Z` by hand on
+github.com (for example from a phone) works too: the CI then attaches the AAR and its
+SHA-256 to that release. The SOMBE app pins that SHA-256 and its
 build fails if the downloaded AAR does not match, so the app ships exactly the code
 published here.
 

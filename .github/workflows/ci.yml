@@ -5,6 +5,10 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  # A release published on github.com creates its tag there, which may not
+  # start the tag push above: build and attach the AAR in that case too.
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -133,7 +137,13 @@ jobs:
         run: |
           cd dist
           sha256sum -c *.sha256
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --title "$GITHUB_REF_NAME" \
-            --notes "Android AAR (arm64-v8a, armeabi-v7a, x86_64) built from $GITHUB_SHA. SHA-256: $(cut -d' ' -f1 *.sha256)" \
-            ./*.aar ./*.sha256
+          notes="Android AAR (arm64-v8a, armeabi-v7a, x86_64) built from $GITHUB_SHA. SHA-256: $(cut -d' ' -f1 *.sha256)"
+          # The release may already exist when someone published it by hand on
+          # github.com: then attach the files to it instead of failing.
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber ./*.aar ./*.sha256
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes "$notes"
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+              --title "$GITHUB_REF_NAME" --notes "$notes" ./*.aar ./*.sha256
+          fi
