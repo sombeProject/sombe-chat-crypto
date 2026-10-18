@@ -18,6 +18,7 @@ impl TestWallet {
         bs58::encode(self.secret.public_key().as_bytes()).into_string()
     }
 
+    #[allow(dead_code)]
     pub fn sign(&self, text: &str) -> String {
         bs58::encode(self.secret.sign(text.as_bytes()).to_bytes()).into_string()
     }

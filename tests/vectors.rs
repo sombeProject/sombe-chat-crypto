@@ -102,6 +102,7 @@ fn edit_content_is_reproducible() {
         comment: None,
         edits_message_id: Some(s(&e["edits_message_id"])),
         reacts_to_message_id: None,
+        profile_key: None,
     };
     assert_eq!(encode_content(content.clone()).unwrap(), s(&e["plaintext"]));
     assert_eq!(decode_content(s(&e["plaintext"])).unwrap(), content);
@@ -120,6 +121,7 @@ fn reaction_content_is_reproducible() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: Some(s(&r["reacts_to_message_id"])),
+        profile_key: None,
     };
     assert_eq!(encode_content(content.clone()).unwrap(), s(&r["plaintext"]));
     assert_eq!(decode_content(s(&r["plaintext"])).unwrap(), content);
@@ -163,7 +165,42 @@ fn reaction_remove_content_is_reproducible() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: Some(s(&r["reacts_to_message_id"])),
+        profile_key: None,
     };
     assert_eq!(encode_content(content.clone()).unwrap(), s(&r["plaintext"]));
     assert_eq!(decode_content(s(&r["plaintext"])).unwrap(), content);
+}
+
+#[test]
+fn profile_decrypts_with_its_key() {
+    let v = vectors();
+    let p = &v["profile"];
+    let profile = decrypt_profile(
+        s(&p["ciphertext"]),
+        unhex(p["profile_key_hex"].as_str().unwrap()),
+        s(&p["wallet_address"]),
+    )
+    .unwrap();
+    assert_eq!(profile, Profile { display_name: Some(s(&p["display_name"])), about: Some(s(&p["about"])) });
+}
+
+#[test]
+fn profile_key_content_is_reproducible() {
+    let v = vectors();
+    let k = &v["profile_key_content"];
+    let key = decode_profile_key(s(&k["profile_key"])).unwrap();
+    assert_eq!(key, unhex(v["profile"]["profile_key_hex"].as_str().unwrap()));
+    let content = MessageContent {
+        conversation_id: s(&k["conversation_id"]),
+        client_message_id: s(&k["client_message_id"]),
+        kind: ContentKind::ProfileKey,
+        body: None,
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: None,
+        reacts_to_message_id: None,
+        profile_key: Some(s(&k["profile_key"])),
+    };
+    assert_eq!(encode_content(content.clone()).unwrap(), s(&k["plaintext"]));
+    assert_eq!(decode_content(s(&k["plaintext"])).unwrap(), content);
 }

@@ -8,8 +8,8 @@ The cryptography is [vodozemac](https://github.com/matrix-org/vodozemac), the
 Matrix project's Rust implementation of Olm (the Double Ratchet with an X3DH style
 handshake, as in Signal). This repository only adds the thin layer SOMBE needs on top:
 an identity signed by the person's Solana wallet, signed one time keys, the envelope,
-the content format, and the safety number two people compare. Nothing here invents new
-cryptography.
+the content format, the encrypted profile, and the safety number two people compare.
+Nothing here invents new cryptography.
 
 `vectors/v1.json` holds test vectors for every format below.
 
@@ -98,7 +98,7 @@ The plaintext inside the ciphertext is JSON:
 ```
 
 - `kind` is `text`, `payment`, (since 0.2.0) `edit` or `reaction`, or (since 0.3.0)
-  `reaction_remove`. A text has a `body` (1 to 4000
+  `reaction_remove` or `profile_key`. A text has a `body` (1 to 4000
   characters) and may carry `reply_excerpt` (at most 200 characters, the quoted message
   as the sender saw it). A payment carries only an optional `comment` (at most 500
   characters).
@@ -141,6 +141,13 @@ The plaintext inside the ciphertext is JSON:
   the person whose reaction it removes, and ignores a removal row without it. A server
   can still withhold any message, a removal included, but can no longer invent one. A
   phone built before 0.3.0 refuses a `reaction_remove` as unreadable content.
+- A `profile_key` (since 0.3.0) shares the sender's profile key (see Profile): it
+  carries only `profile_key`, the 32 byte key in unpadded base64, and no other kind may
+  carry that field. A phone built before 0.3.0 refuses it as unreadable content:
+
+  ```json
+  {"v":1,"conversation_id":"…","client_message_id":"…","kind":"profile_key","profile_key":"…"}
+  ```
 - `conversation_id` and `client_message_id` must equal the server row the message
   came with. A phone refuses content that does not match, so the server can neither
   move a message to another conversation nor replay it as a new one.
@@ -162,6 +169,45 @@ The plaintext inside the ciphertext is JSON:
   bytes, never encrypting it twice.
 - Accounts and sessions are stored only on the phone, as vodozemac pickles encrypted
   with a 32 byte key, and are never backed up or sent anywhere.
+
+## Profile
+
+A wallet address is public, and so are its payments on the blockchain. What would tie
+it to a person is their profile: display name, about text, avatar. The server stores
+the profile only encrypted, and only the person's contacts can read it.
+
+- Each person's phone makes a random 32 byte **profile key** and keeps it. It sends the
+  key to a contact as a `profile_key` content, encrypted like any message. To stop
+  sharing with someone (they were blocked, say), the phone makes a new key, encrypts
+  the profile again and sends the new key to the remaining contacts only.
+- The **profile** is this JSON, padded like message content (a final `pad` field of
+  spaces up to the next power of two, at least 256 bytes):
+
+  ```json
+  {"v":1,"display_name":"…","about":"…","pad":"   …"}
+  ```
+
+  `display_name` is 1 to 64 characters with no control character, `about` at most 140
+  characters; both are optional.
+- The **avatar** is the image bytes (1 byte to 512 KiB), prefixed with their length as
+  a 4 byte big endian integer and followed by zeros up to the next power of two, at
+  least 4096 bytes.
+- Both are encrypted with XChaCha20-Poly1305 under the profile key, with a random 24
+  byte nonce, as `0x01 || nonce || ciphertext and tag`. The profile is stored as
+  unpadded base64 of those bytes, the avatar as the bytes themselves. The associated
+  data is this UTF-8 text, so a server can neither serve one person's profile as
+  another's nor an avatar as a profile:
+
+  ```
+  SOMBE profile v1
+  wallet:<wallet address, base58>
+  part:<profile or avatar>
+  ```
+
+The alias a person is found by (to be paid or written to) is not part of the profile:
+the server has to read it to answer a search, so it stays public, linked to the wallet.
+A server can still serve an older encrypted profile of the same person, since nothing
+dates it.
 
 ## Safety number
 
@@ -195,7 +241,7 @@ verified is stored only on the phone that verified it, never sent to the server.
 
 - Metadata: the server sees who talks to whom and when (no sealed sender, no hidden
   timing), and the size bucket of each message. Payments are also public on the Solana
-  blockchain, wallet to wallet.
+  blockchain, wallet to wallet, and a public alias links a wallet to whoever chose it.
 - The very first contact trusts the wallet address the server gives for that contact.
   From then on the phone pins it, and a changed address blocks sending. Comparing the
   safety number is what removes that trust; until two people do it, they rely on it.

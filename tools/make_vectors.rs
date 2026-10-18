@@ -1,18 +1,21 @@
 //! Writes vectors/v1.json: fixed inputs and outputs any implementation of PROTOCOL.md
 //! must reproduce (wallet signature, statement, one time key signature, content, an edit
 //! and a reaction content (since 0.2.0), a first message that decrypts with the pickled
-//! account, and since 0.3.0 a safety number, a reaction removal and padded contents).
+//! account, and since 0.3.0 a safety number, a reaction removal, padded contents, and an
+//! encrypted profile with the `profile_key` content that shares its key).
 //! Run once; the file is
 //! committed and checked by tests/vectors.rs. Never use these keys for anything real.
 
 use serde_json::json;
 use sombe_chat_crypto::{
-    encode_content, safety_number, verify_identity, ChatCrypto, ContentKind, MessageContent, VerifiedIdentity,
+    encode_content, encode_profile_key, encrypt_profile, safety_number, verify_identity, ChatCrypto,
+    ContentKind, MessageContent, Profile, VerifiedIdentity,
 };
 use vodozemac::Ed25519SecretKey;
 
 const PICKLE_KEY: [u8; 32] = [0x42; 32];
 const CREATED: &str = "2026-10-14T18:30:01.183Z";
+const PROFILE_KEY: [u8; 32] = [0x24; 32];
 
 fn main() {
     let seed: [u8; 32] = std::array::from_fn(|i| i as u8);
@@ -35,6 +38,7 @@ fn main() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: None,
+        profile_key: None,
     };
     let plaintext = encode_content(content).unwrap();
 
@@ -47,6 +51,7 @@ fn main() {
         comment: None,
         edits_message_id: Some("3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34".into()),
         reacts_to_message_id: None,
+        profile_key: None,
     };
     let edit_plaintext = encode_content(edit.clone()).unwrap();
 
@@ -59,6 +64,7 @@ fn main() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: Some("3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34".into()),
+        profile_key: None,
     };
     let reaction_plaintext = encode_content(reaction.clone()).unwrap();
 
@@ -71,8 +77,26 @@ fn main() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: Some("3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34".into()),
+        profile_key: None,
     };
     let removal_plaintext = encode_content(removal.clone()).unwrap();
+
+    let profile =
+        Profile { display_name: Some("Bob Mendy".into()), about: Some("Au marché le samedi".into()) };
+    let sealed_profile =
+        encrypt_profile(profile.clone(), PROFILE_KEY.to_vec(), wallet_address.clone()).unwrap();
+    let profile_key_content = MessageContent {
+        conversation_id: "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01".into(),
+        client_message_id: "6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67".into(),
+        kind: ContentKind::ProfileKey,
+        body: None,
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: None,
+        reacts_to_message_id: None,
+        profile_key: Some(encode_profile_key(PROFILE_KEY.to_vec()).unwrap()),
+    };
+    let profile_key_plaintext = encode_content(profile_key_content.clone()).unwrap();
 
     let alice = ChatCrypto::create_account();
     let alice_seed: [u8; 32] = std::array::from_fn(|i| 32 + i as u8);
@@ -145,6 +169,19 @@ fn main() {
             "remote": identity_json(&bob_identity),
             "digits": safety.digits,
             "qr_payload": safety.qr_payload,
+        },
+        "profile": {
+            "profile_key_hex": hex(&PROFILE_KEY),
+            "wallet_address": wallet_address,
+            "display_name": profile.display_name,
+            "about": profile.about,
+            "ciphertext": sealed_profile,
+        },
+        "profile_key_content": {
+            "conversation_id": profile_key_content.conversation_id,
+            "client_message_id": profile_key_content.client_message_id,
+            "profile_key": profile_key_content.profile_key,
+            "plaintext": profile_key_plaintext,
         },
         "reaction_remove_content": {
             "conversation_id": removal.conversation_id,
