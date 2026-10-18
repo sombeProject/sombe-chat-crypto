@@ -128,7 +128,7 @@ fn instant(value: &str) -> Result<(&str, &str), ChatCryptoError> {
 }
 
 /// A Solana address is the base58 form of an ed25519 public key.
-pub(crate) fn wallet_public_key(wallet_address: &str) -> Result<Ed25519PublicKey, ChatCryptoError> {
+fn wallet_public_key(wallet_address: &str) -> Result<Ed25519PublicKey, ChatCryptoError> {
     let bytes = bs58::decode(wallet_address)
         .into_vec()
         .map_err(|_| invalid_key("wallet address is not base58".to_owned()))?;

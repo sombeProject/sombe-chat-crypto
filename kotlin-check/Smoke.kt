@@ -5,19 +5,11 @@ import org.sombe.chatcrypto.ChatCryptoException
 import org.sombe.chatcrypto.ContentKind
 import org.sombe.chatcrypto.IdentityUpdate
 import org.sombe.chatcrypto.MessageContent
-import org.sombe.chatcrypto.Profile
 import org.sombe.chatcrypto.ScanResult
 import org.sombe.chatcrypto.VerifiedIdentity
 import org.sombe.chatcrypto.checkIdentityUpdate
 import org.sombe.chatcrypto.compareScannedSafetyCode
 import org.sombe.chatcrypto.decodeContent
-import org.sombe.chatcrypto.decodeProfileKey
-import org.sombe.chatcrypto.decryptAvatar
-import org.sombe.chatcrypto.decryptProfile
-import org.sombe.chatcrypto.encodeProfileKey
-import org.sombe.chatcrypto.encryptAvatar
-import org.sombe.chatcrypto.encryptProfile
-import org.sombe.chatcrypto.generateProfileKey
 import org.sombe.chatcrypto.encodeContent
 import org.sombe.chatcrypto.safetyNumber
 import org.sombe.chatcrypto.verifyOneTimeKey
@@ -139,36 +131,6 @@ fun main() {
     } catch (e: ChatCryptoException.StaleIdentity) {
         check(true, "an older identity is refused")
     }
-
-    // The test vectors' wallet: encrypted profiles are bound to a real wallet address.
-    val wallet = "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF"
-    val profileKey = generateProfileKey()
-    val profile = Profile(displayName = "Awa Diallo", about = "Couturière à Thiès")
-    val sealed = encryptProfile(profile, profileKey, wallet)
-    check(!sealed.contains("Awa"), "the encrypted profile hides the name")
-    check(decryptProfile(sealed, profileKey, wallet) == profile, "profile round trip")
-    val avatar = ByteArray(1000) { it.toByte() }
-    check(
-        decryptAvatar(encryptAvatar(avatar, profileKey, wallet), profileKey, wallet).contentEquals(avatar),
-        "avatar round trip",
-    )
-    try {
-        decryptProfile(sealed, generateProfileKey(), wallet)
-        check(false, "a wrong profile key must throw")
-    } catch (e: ChatCryptoException.Decryption) {
-        check(true, "a wrong profile key is refused")
-    }
-    val shared = MessageContent(
-        conversationId = content.conversationId,
-        clientMessageId = "6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67",
-        kind = ContentKind.PROFILE_KEY,
-        body = null,
-        replyExcerpt = null,
-        comment = null,
-        profileKey = encodeProfileKey(profileKey),
-    )
-    val sharedBack = decodeContent(encodeContent(shared))
-    check(decodeProfileKey(sharedBack.profileKey!!).contentEquals(profileKey), "profile key travels as content")
 
     listOf(alice, bob, restored, bobNewPhone).forEach { it.close() }
     println("Kotlin ${KotlinVersion.CURRENT}: all checks passed")

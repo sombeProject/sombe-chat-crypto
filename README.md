@@ -6,7 +6,7 @@ check it. It is a thin layer over [vodozemac](https://github.com/matrix-org/vodo
 no business logic: no networking, no storage, no payments.
 
 - [PROTOCOL.md](PROTOCOL.md): identity signed by the wallet, one time keys, envelope,
-  content format, session rules, identity pinning, encrypted profile, safety number.
+  content format, session rules, identity pinning, safety number.
 - [vectors/v1.json](vectors/v1.json): test vectors for every format.
 
 ## Build and test
@@ -40,10 +40,6 @@ val contact = verifyIdentity(statement, walletAddress, walletSignature)  // a co
 checkIdentityUpdate(pinned, contact)              // New, Unchanged or Changed; an older one throws
 val code = safetyNumber(me, contact)              // 60 digits and the QR text to compare
 compareScannedSafetyCode(me, contact, scannedText) // Match, Mismatch or NotASafetyCode
-
-val profileKey = generateProfileKey()             // keep it; share it with encodeProfileKey in a PROFILE_KEY content
-val sealed = encryptProfile(Profile(displayName, about), profileKey, walletAddress)  // what the server stores
-val profile = decryptProfile(sealed, contactProfileKey, contactWallet)
 val sent = account.encryptFor(remote, session, claimedKey, plaintext, pickleKey)
 val read = account.decryptFrom(remote, sessions, envelope, pickleKey)
 ```

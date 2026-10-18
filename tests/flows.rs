@@ -255,7 +255,6 @@ fn content_round_trip_and_rules() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: None,
-        profile_key: None,
     };
     let json = encode_content(content.clone()).unwrap();
     assert_eq!(
@@ -297,7 +296,6 @@ fn edit_content_rules() {
         comment: None,
         edits_message_id: Some("6f1c2a8e-0000-4000-8000-000000000002".into()),
         reacts_to_message_id: None,
-        profile_key: None,
     };
     let json = encode_content(edit.clone()).unwrap();
     assert_eq!(
@@ -348,7 +346,6 @@ fn reaction_content_rules() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: Some("6f1c2a8e-0000-4000-8000-000000000002".into()),
-        profile_key: None,
     };
     let json = encode_content(reaction.clone()).unwrap();
     assert_eq!(
@@ -436,7 +433,6 @@ fn content_is_padded_to_a_size_bucket() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: None,
-        profile_key: None,
     };
     // "Oui" and a longer sentence look the same size to the server.
     let short = encode_content(text("Oui")).unwrap();
@@ -467,7 +463,6 @@ fn reaction_removal_is_encrypted_content() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: Some("6f1c2a8e-0000-4000-8000-000000000002".into()),
-        profile_key: None,
     };
     let json = encode_content(removal.clone()).unwrap();
     assert_eq!(

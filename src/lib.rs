@@ -12,7 +12,6 @@ use vodozemac::{base64_decode, base64_encode, Curve25519PublicKey};
 use zeroize::Zeroizing;
 
 mod content;
-mod profile;
 mod safety;
 mod statement;
 
@@ -53,8 +52,6 @@ pub enum ChatCryptoError {
     /// The identity is not newer than the one pinned for this contact.
     #[error("identity is older than the pinned one")]
     StaleIdentity,
-    #[error("invalid profile: {reason}")]
-    InvalidProfile { reason: String },
 }
 
 type Result<T> = std::result::Result<T, ChatCryptoError>;
@@ -106,15 +103,6 @@ pub enum ScanResult {
     Mismatch,
     /// Not a SOMBE safety number at all.
     NotASafetyCode,
-}
-
-/// What a person shows their contacts. Encrypted end to end: the server never reads it.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
-pub struct Profile {
-    /// 1 to 64 characters, no control character.
-    pub display_name: Option<String>,
-    /// At most 140 characters.
-    pub about: Option<String>,
 }
 
 /// A one time key (or the fallback key), signed by the identity's ed25519 key.
@@ -351,49 +339,6 @@ pub fn compare_scanned_safety_code(
     scanned: String,
 ) -> Result<ScanResult> {
     safety::compare_scan(&local, &remote, &scanned)
-}
-
-/// A new random 32 byte profile key. Keep it on the phone; share it with a contact by
-/// sending them a `profile_key` content, and make a new one to stop sharing with someone.
-#[uniffi::export]
-pub fn generate_profile_key() -> Result<Vec<u8>> {
-    profile::generate_key()
-}
-
-/// The profile key as a `profile_key` content carries it.
-#[uniffi::export]
-pub fn encode_profile_key(profile_key: Vec<u8>) -> Result<String> {
-    profile::encode_key(&Zeroizing::new(profile_key))
-}
-
-/// The profile key from a received `profile_key` content.
-#[uniffi::export]
-pub fn decode_profile_key(encoded: String) -> Result<Vec<u8>> {
-    profile::decode_key(&encoded)
-}
-
-/// The profile of `wallet_address`, encrypted for the server to store (base64).
-#[uniffi::export]
-pub fn encrypt_profile(profile: Profile, profile_key: Vec<u8>, wallet_address: String) -> Result<String> {
-    profile::encrypt(&profile, &Zeroizing::new(profile_key), &wallet_address)
-}
-
-/// A contact's profile, with the profile key they sent and their pinned wallet address.
-#[uniffi::export]
-pub fn decrypt_profile(ciphertext: String, profile_key: Vec<u8>, wallet_address: String) -> Result<Profile> {
-    profile::decrypt(&ciphertext, &Zeroizing::new(profile_key), &wallet_address)
-}
-
-/// The avatar image (at most 512 KiB) of `wallet_address`, encrypted for the server to store.
-#[uniffi::export]
-pub fn encrypt_avatar(image: Vec<u8>, profile_key: Vec<u8>, wallet_address: String) -> Result<Vec<u8>> {
-    profile::encrypt_avatar(&image, &Zeroizing::new(profile_key), &wallet_address)
-}
-
-/// A contact's avatar image, with the profile key they sent and their pinned wallet address.
-#[uniffi::export]
-pub fn decrypt_avatar(ciphertext: Vec<u8>, profile_key: Vec<u8>, wallet_address: String) -> Result<Vec<u8>> {
-    profile::decrypt_avatar(&ciphertext, &Zeroizing::new(profile_key), &wallet_address)
 }
 
 /// Checks that a one time key was signed by this identity.

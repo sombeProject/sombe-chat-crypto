@@ -27,8 +27,6 @@ pub enum ContentKind {
     Reaction,
     /// Removes the sender's reaction from a text (`reacts_to_message_id`), since 0.3.0.
     ReactionRemove,
-    /// Shares the sender's profile key (`profile_key`), since 0.3.0.
-    ProfileKey,
 }
 
 #[derive(uniffi::Record, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -52,11 +50,6 @@ pub struct MessageContent {
     #[uniffi(default = None)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reacts_to_message_id: Option<String>,
-    /// The sender's profile key in base64 (`encode_profile_key`); absent for every other
-    /// kind. Added in 0.3.0 last, with a default, for the same reason.
-    #[uniffi(default = None)]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub profile_key: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -91,9 +84,6 @@ pub(crate) fn decode(json: &str) -> Result<MessageContent, ChatCryptoError> {
 fn validate(content: &MessageContent) -> Result<(), ChatCryptoError> {
     if content.conversation_id.is_empty() || content.client_message_id.is_empty() {
         return Err(invalid("conversation_id and client_message_id are required"));
-    }
-    if content.kind != ContentKind::ProfileKey && content.profile_key.is_some() {
-        return Err(invalid("only a profile_key content names profile_key"));
     }
     let names_reaction = matches!(content.kind, ContentKind::Reaction | ContentKind::ReactionRemove);
     if !names_reaction && content.reacts_to_message_id.is_some() {
@@ -138,17 +128,6 @@ fn validate(content: &MessageContent) -> Result<(), ChatCryptoError> {
                 || content.edits_message_id.is_some()
             {
                 return Err(invalid("reaction removal carries only reacts_to_message_id"));
-            }
-        }
-        ContentKind::ProfileKey => {
-            crate::profile::decode_key(content.profile_key.as_deref().unwrap_or(""))
-                .map_err(|_| invalid("profile_key content needs a 32 byte base64 profile_key"))?;
-            if content.body.is_some()
-                || content.reply_excerpt.is_some()
-                || content.comment.is_some()
-                || content.edits_message_id.is_some()
-            {
-                return Err(invalid("profile_key content carries only profile_key"));
             }
         }
         ContentKind::Edit => {
