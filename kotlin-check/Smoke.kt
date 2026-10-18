@@ -77,6 +77,16 @@ fun main() {
     } catch (e: ChatCryptoException.InvalidContent) {
         check(true, "a reaction with a space is refused")
     }
+    val removal = reaction.copy(
+        clientMessageId = "5a2d9c1f-8b6e-4d3f-8c7a-0e1f2a3b4d56",
+        kind = ContentKind.REACTION_REMOVE,
+        body = null,
+    )
+    check(decodeContent(encodeContent(removal)) == removal, "a reaction removal round trips")
+    check(
+        encodeContent(content).encodeToByteArray().size == 256 && encodeContent(removal).encodeToByteArray().size == 256,
+        "contents are padded to 256 bytes",
+    )
     check(received.newSession && received.accountChanged, "a new inbound session was opened")
 
     val reply = bob.encryptFor(alice.identityKeys(), received.session, null, "Oui", key)

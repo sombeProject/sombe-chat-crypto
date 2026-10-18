@@ -97,7 +97,8 @@ The plaintext inside the ciphertext is JSON:
 {"v":1,"conversation_id":"…","client_message_id":"…","kind":"text","body":"…","reply_excerpt":"…"}
 ```
 
-- `kind` is `text`, `payment` or (since 0.2.0) `edit` or `reaction`. A text has a `body` (1 to 4000
+- `kind` is `text`, `payment`, (since 0.2.0) `edit` or `reaction`, or (since 0.3.0)
+  `reaction_remove`. A text has a `body` (1 to 4000
   characters) and may carry `reply_excerpt` (at most 200 characters, the quoted message
   as the sender saw it). A payment carries only an optional `comment` (at most 500
   characters).
@@ -116,7 +117,8 @@ The plaintext inside the ciphertext is JSON:
 - A `reaction` (since 0.2.0) sets one emoji on a text. Its `body` is the emoji, 1 to 16
   characters (code points) without any white space, and `reacts_to_message_id` is the
   server id of that text. It carries neither `reply_excerpt`, `comment` nor
-  `edits_message_id`, and no other kind may carry `reacts_to_message_id`:
+  `edits_message_id`, and no kind but `reaction` and `reaction_remove` may carry
+  `reacts_to_message_id`:
 
   ```json
   {"v":1,"conversation_id":"…","client_message_id":"…","kind":"reaction","body":"❤️","reacts_to_message_id":"…"}
@@ -124,13 +126,30 @@ The plaintext inside the ciphertext is JSON:
 
   `reacts_to_message_id` must equal the one on the server row, so a server cannot move
   a reaction to another message. Each person has at most one reaction per text: the
-  latest row wins. Removing it is a server row of kind `reaction_remove` that names the
-  same text and is never encrypted, so it has no content here. A server can therefore
-  invent a removal, but neither invent an emoji nor bring a removed reaction back. A
-  phone built before 0.2.0 refuses a `reaction` as unreadable content.
+  latest row wins. A phone built before 0.2.0 refuses a `reaction` as unreadable content.
+- A `reaction_remove` (since 0.3.0) removes the sender's reaction from a text. It is
+  encrypted like any other content, carries only `reacts_to_message_id` (no `body`,
+  `reply_excerpt`, `comment` nor `edits_message_id`), and that id must equal the one on
+  the server row:
+
+  ```json
+  {"v":1,"conversation_id":"…","client_message_id":"…","kind":"reaction_remove","reacts_to_message_id":"…"}
+  ```
+
+  Before 0.3.0 a removal was a server row that was never encrypted, so a server could
+  invent one. A phone now applies a removal only from this encrypted content, sent by
+  the person whose reaction it removes, and ignores a removal row without it. A server
+  can still withhold any message, a removal included, but can no longer invent one. A
+  phone built before 0.3.0 refuses a `reaction_remove` as unreadable content.
 - `conversation_id` and `client_message_id` must equal the server row the message
   came with. A phone refuses content that does not match, so the server can neither
   move a message to another conversation nor replay it as a new one.
+- Padding (since 0.3.0): the JSON ends with a `pad` field of spaces that brings its
+  UTF-8 length to the next power of two, at least 256 bytes (256, 512, 1024, and so on). The other fields come first, then `"pad":"   …"` last. A reader
+  ignores `pad`, and a content without it (from a phone built before 0.3.0) is still
+  read; phones built before 0.3.0 ignore it in turn. The server then sees a size
+  bucket, not a length: `Oui` and a sentence of a few words both encrypt to the same
+  size, and so do a reaction, its removal and a short text.
 
 ## Sessions
 
@@ -174,7 +193,9 @@ verified is stored only on the phone that verified it, never sent to the server.
 
 ## What this does not protect
 
-- Metadata: the server sees who talks to whom, when, and how long messages are.
+- Metadata: the server sees who talks to whom and when (no sealed sender, no hidden
+  timing), and the size bucket of each message. Payments are also public on the Solana
+  blockchain, wallet to wallet.
 - The very first contact trusts the wallet address the server gives for that contact.
   From then on the phone pins it, and a changed address blocks sending. Comparing the
   safety number is what removes that trust; until two people do it, they rely on it.

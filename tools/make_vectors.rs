@@ -1,7 +1,8 @@
 //! Writes vectors/v1.json: fixed inputs and outputs any implementation of PROTOCOL.md
 //! must reproduce (wallet signature, statement, one time key signature, content, an edit
 //! and a reaction content (since 0.2.0), a first message that decrypts with the pickled
-//! account, and a safety number (since 0.3.0)). Run once; the file is
+//! account, and since 0.3.0 a safety number, a reaction removal and padded contents).
+//! Run once; the file is
 //! committed and checked by tests/vectors.rs. Never use these keys for anything real.
 
 use serde_json::json;
@@ -60,6 +61,18 @@ fn main() {
         reacts_to_message_id: Some("3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34".into()),
     };
     let reaction_plaintext = encode_content(reaction.clone()).unwrap();
+
+    let removal = MessageContent {
+        conversation_id: "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01".into(),
+        client_message_id: "5a2d9c1f-8b6e-4d3f-8c7a-0e1f2a3b4d56".into(),
+        kind: ContentKind::ReactionRemove,
+        body: None,
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: None,
+        reacts_to_message_id: Some("3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34".into()),
+    };
+    let removal_plaintext = encode_content(removal.clone()).unwrap();
 
     let alice = ChatCrypto::create_account();
     let alice_seed: [u8; 32] = std::array::from_fn(|i| 32 + i as u8);
@@ -132,6 +145,12 @@ fn main() {
             "remote": identity_json(&bob_identity),
             "digits": safety.digits,
             "qr_payload": safety.qr_payload,
+        },
+        "reaction_remove_content": {
+            "conversation_id": removal.conversation_id,
+            "client_message_id": removal.client_message_id,
+            "reacts_to_message_id": removal.reacts_to_message_id,
+            "plaintext": removal_plaintext,
         },
         "reaction_content": {
             "conversation_id": reaction.conversation_id,

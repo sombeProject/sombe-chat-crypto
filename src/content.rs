@@ -1,5 +1,6 @@
 //! What travels inside the ciphertext. The two ids bind the content to its server row,
-//! so a server can neither move a message to another conversation nor replay it.
+//! so a server can neither move a message to another conversation nor replay it. Every
+//! content is padded to a size bucket, so its length tells the server little.
 
 use serde::{Deserialize, Serialize};
 
@@ -10,6 +11,10 @@ pub const MAX_BODY_CHARS: usize = 4000;
 pub const MAX_REPLY_EXCERPT_CHARS: usize = 200;
 pub const MAX_COMMENT_CHARS: usize = 500;
 pub const MAX_REACTION_CHARS: usize = 16;
+/// The smallest padded size, in bytes; larger contents are padded to the next power of two.
+pub const MIN_PADDED_BYTES: usize = 256;
+/// What the `pad` field adds around its spaces: `,"pad":""`.
+const PAD_FIELD_BYTES: usize = 9;
 
 #[derive(uniffi::Enum, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -18,8 +23,10 @@ pub enum ContentKind {
     Payment,
     /// Replaces the body of an earlier text by the same sender (`edits_message_id`).
     Edit,
-    /// One emoji set on a text (`reacts_to_message_id`). Removing it is never encrypted.
+    /// One emoji set on a text (`reacts_to_message_id`).
     Reaction,
+    /// Removes the sender's reaction from a text (`reacts_to_message_id`), since 0.3.0.
+    ReactionRemove,
 }
 
 #[derive(uniffi::Record, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -50,11 +57,19 @@ struct Wire {
     v: u32,
     #[serde(flatten)]
     content: MessageContent,
+    /// Spaces that bring the JSON to its size bucket; ignored when read (and absent
+    /// before 0.3.0, whose phones ignore it in turn).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pad: Option<String>,
 }
 
 pub(crate) fn encode(content: MessageContent) -> Result<String, ChatCryptoError> {
     validate(&content)?;
-    serde_json::to_string(&Wire { v: CONTENT_VERSION, content }).map_err(|e| invalid(&e.to_string()))
+    let mut wire = Wire { v: CONTENT_VERSION, content, pad: None };
+    let unpadded = serde_json::to_string(&wire).map_err(|e| invalid(&e.to_string()))?.len();
+    let target = (unpadded + PAD_FIELD_BYTES).max(MIN_PADDED_BYTES).next_power_of_two();
+    wire.pad = Some(" ".repeat(target - unpadded - PAD_FIELD_BYTES));
+    serde_json::to_string(&wire).map_err(|e| invalid(&e.to_string()))
 }
 
 pub(crate) fn decode(json: &str) -> Result<MessageContent, ChatCryptoError> {
@@ -70,8 +85,9 @@ fn validate(content: &MessageContent) -> Result<(), ChatCryptoError> {
     if content.conversation_id.is_empty() || content.client_message_id.is_empty() {
         return Err(invalid("conversation_id and client_message_id are required"));
     }
-    if content.kind != ContentKind::Reaction && content.reacts_to_message_id.is_some() {
-        return Err(invalid("only a reaction names reacts_to_message_id"));
+    let names_reaction = matches!(content.kind, ContentKind::Reaction | ContentKind::ReactionRemove);
+    if !names_reaction && content.reacts_to_message_id.is_some() {
+        return Err(invalid("only a reaction or its removal names reacts_to_message_id"));
     }
     match content.kind {
         ContentKind::Text => {
@@ -100,6 +116,18 @@ fn validate(content: &MessageContent) -> Result<(), ChatCryptoError> {
                 || content.edits_message_id.is_some()
             {
                 return Err(invalid("reaction carries neither reply_excerpt, comment nor edits_message_id"));
+            }
+        }
+        ContentKind::ReactionRemove => {
+            if content.reacts_to_message_id.as_deref().unwrap_or("").is_empty() {
+                return Err(invalid("reaction removal needs reacts_to_message_id"));
+            }
+            if content.body.is_some()
+                || content.reply_excerpt.is_some()
+                || content.comment.is_some()
+                || content.edits_message_id.is_some()
+            {
+                return Err(invalid("reaction removal carries only reacts_to_message_id"));
             }
         }
         ContentKind::Edit => {
