@@ -6,7 +6,7 @@ check it. It is a thin layer over [vodozemac](https://github.com/matrix-org/vodo
 no business logic: no networking, no storage, no payments.
 
 - [PROTOCOL.md](PROTOCOL.md): identity signed by the wallet, one time keys, envelope,
-  content format, session rules.
+  content format, session rules, identity pinning, safety number.
 - [vectors/v1.json](vectors/v1.json): test vectors for every format.
 
 ## Build and test
@@ -36,7 +36,10 @@ val account = ChatCrypto.createAccount()          // or ChatCrypto.restoreAccoun
 val statement = account.identityStatement(walletAddress, createdAt)  // signed by the wallet
 val keys = account.generateOneTimeKeys(50u)       // publish, then account.markKeysPublished()
 
-verifyIdentity(statement, walletAddress, walletSignature)            // a contact's identity
+val contact = verifyIdentity(statement, walletAddress, walletSignature)  // a contact's identity
+checkIdentityUpdate(pinned, contact)              // New, Unchanged or Changed; an older one throws
+val code = safetyNumber(me, contact)              // 60 digits and the QR text to compare
+compareScannedSafetyCode(me, contact, scannedText) // Match, Mismatch or NotASafetyCode
 val sent = account.encryptFor(remote, session, claimedKey, plaintext, pickleKey)
 val read = account.decryptFrom(remote, sessions, envelope, pickleKey)
 ```

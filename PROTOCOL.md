@@ -8,34 +8,57 @@ The cryptography is [vodozemac](https://github.com/matrix-org/vodozemac), the
 Matrix project's Rust implementation of Olm (the Double Ratchet with an X3DH style
 handshake, as in Signal). This repository only adds the thin layer SOMBE needs on top:
 an identity signed by the person's Solana wallet, signed one time keys, the envelope,
-and the content format. Nothing here invents new cryptography.
+the content format, and the safety number two people compare. Nothing here invents new
+cryptography.
 
 `vectors/v1.json` holds test vectors for every format below.
 
 ## Identity
 
 Each wallet has at most one active chat identity: an Olm account living on one phone.
-Its two public keys (`curve25519`, `ed25519`, unpadded base64) are vouched for by the
-wallet with this UTF-8 text, signed with the wallet's ed25519 key (the Solana key):
+Its two public keys (`curve25519`, `ed25519`, unpadded base64) and the wallet vouch for
+each other with this UTF-8 text:
 
 ```
-SOMBE chat identity v1
+SOMBE chat identity v2
 protocol:olm-v1
 wallet:<wallet address, base58>
 curve25519:<identity curve25519 key>
 ed25519:<identity ed25519 key>
 created:<ISO 8601 UTC, e.g. 2026-10-14T18:30:01.183Z>
+identity_signature:<signature of the six lines above by the identity ed25519 key, base64>
 ```
 
-Lines are separated by a single `\n`, with no trailing newline. The signature is the
-64 byte ed25519 signature in base58. A verifier checks the signature against the
-wallet address it expects (never against an address taken from the text alone), then
-checks the text is exactly this format.
+Lines are separated by a single `\n`, with no trailing newline. The identity's ed25519
+key first signs the first six lines (the body, also without a trailing newline), so the
+identity vouches for the wallet: without it, any wallet could sign a statement naming
+someone else's keys. The wallet then signs the whole seven line text with its ed25519
+key (the Solana key); that signature is the 64 byte ed25519 signature in base58.
+
+A verifier checks the wallet signature against the wallet address it expects (never
+against an address taken from the text alone), then checks the text is exactly this
+format, then checks `identity_signature` against the `ed25519` key of the text. A `v1`
+statement (0.2.0 and earlier, six lines and no identity signature) is refused: each
+identity publishes a `v2` statement again, signed by its wallet.
 
 The server checks the statement before accepting an identity, and refuses one that is
 older than the previous identity of the same wallet or more than 24 hours away from
 its clock. The app checks it again before it encrypts anything to a contact, against
 the wallet address it pinned for that contact the first time it saw it.
+
+The app also pins the contact's latest verified identity, and compares each identity it
+receives with it (`check_identity_update`):
+
+- Nothing pinned yet: the identity is new, the app pins it.
+- Same `curve25519` and `ed25519` keys: unchanged.
+- Other keys and a strictly later `created`: the contact moved to a new phone. The app
+  pins the new identity, removes the contact's verified mark and shows that the safety
+  number changed.
+- Other keys and the same or an earlier `created`: refused. A server that relays an old,
+  validly signed identity (from a lost or stolen phone, say) cannot bring it back.
+- Another wallet: refused; a changed address blocks sending, as above.
+
+`created` values compare in time order; a value without milliseconds counts as `.000`.
 
 ## One time keys
 
@@ -121,11 +144,40 @@ The plaintext inside the ciphertext is JSON:
 - Accounts and sessions are stored only on the phone, as vodozemac pickles encrypted
   with a 32 byte key, and are never backed up or sent anywhere.
 
+## Safety number
+
+Two people check that no one sits between their phones by comparing a safety number,
+in person (one scans the other's QR code) or by reading it aloud on a video call. Each
+phone computes it from both verified identities; the server is not involved.
+
+1. For each identity, the input is this UTF-8 text:
+
+   ```
+   SOMBE safety number v1
+   wallet:<wallet address, base58>
+   curve25519:<identity curve25519 key>
+   ed25519:<identity ed25519 key>
+   ```
+
+2. `h = SHA-512(input)`, then 5199 more times `h = SHA-512(h || input)`.
+3. The first 30 bytes of `h`, cut into six chunks of 5 bytes, each read as a big endian
+   integer and kept modulo 100000, written as 5 digits with leading zeros: 30 digits.
+4. The two identities' 30 digit strings are sorted (as strings) and joined: 60 digits,
+   shown as 12 groups of 5. Both phones get the same number whichever side computes it.
+5. The QR code holds the text `SOMBE-SN1:` followed by the 60 digits. A phone that scans
+   it compares those digits with its own: same (`Match`, the person can mark the contact
+   verified), different (`Mismatch`), or not a SOMBE safety number.
+
+Both wallets must differ. The number changes as soon as either wallet or either key
+changes, so a substituted key shows other digits on each side. Whether a contact is
+verified is stored only on the phone that verified it, never sent to the server.
+
 ## What this does not protect
 
 - Metadata: the server sees who talks to whom, when, and how long messages are.
 - The very first contact trusts the wallet address the server gives for that contact.
-  From then on the phone pins it, and a changed address blocks sending.
+  From then on the phone pins it, and a changed address blocks sending. Comparing the
+  safety number is what removes that trust; until two people do it, they rely on it.
 - No post quantum protection (Olm has none).
 - One phone per wallet. A restored wallet gets a new identity and cannot read older
   messages.

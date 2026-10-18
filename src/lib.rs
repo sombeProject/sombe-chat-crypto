@@ -12,6 +12,7 @@ use vodozemac::{base64_decode, base64_encode, Curve25519PublicKey};
 use zeroize::Zeroizing;
 
 mod content;
+mod safety;
 mod statement;
 
 pub use content::{ContentKind, MessageContent};
@@ -45,6 +46,12 @@ pub enum ChatCryptoError {
     Encryption { reason: String },
     #[error("invalid content: {reason}")]
     InvalidContent { reason: String },
+    /// The identity names another wallet than the one pinned for this contact.
+    #[error("the contact's wallet address changed")]
+    WalletChanged,
+    /// The identity is not newer than the one pinned for this contact.
+    #[error("identity is older than the pinned one")]
+    StaleIdentity,
 }
 
 type Result<T> = std::result::Result<T, ChatCryptoError>;
@@ -63,6 +70,39 @@ pub struct VerifiedIdentity {
     pub curve25519_key: String,
     pub ed25519_key: String,
     pub created_at: String,
+}
+
+/// How a contact's identity compares with the one the app pinned for them.
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdentityUpdate {
+    /// No identity was pinned yet: pin this one.
+    New,
+    /// Same keys as the pinned identity.
+    Unchanged,
+    /// A newer identity (a new phone): pin it, and drop the contact's verified mark.
+    Changed,
+}
+
+/// The code two people compare to check their conversation.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct SafetyNumber {
+    /// 60 digits, the same on both phones.
+    pub digits: String,
+    /// The same digits in 12 groups of 5, as the app shows them.
+    pub groups: Vec<String>,
+    /// The text to put in the QR code.
+    pub qr_payload: String,
+}
+
+/// What a scanned QR code says about the conversation.
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScanResult {
+    /// Same safety number: the contact can be marked verified.
+    Match,
+    /// A SOMBE safety number, but another one.
+    Mismatch,
+    /// Not a SOMBE safety number at all.
+    NotASafetyCode,
 }
 
 /// A one time key (or the fallback key), signed by the identity's ed25519 key.
@@ -139,9 +179,12 @@ impl ChatCrypto {
         IdentityKeys { curve25519_key: keys.curve25519.to_base64(), ed25519_key: keys.ed25519.to_base64() }
     }
 
-    /// The text the wallet signs to vouch for this identity.
+    /// The text the wallet signs to vouch for this identity. It already carries the
+    /// identity's own signature of the wallet address, so no wallet can claim these keys.
     pub fn identity_statement(&self, wallet_address: String, created_at: String) -> Result<String> {
-        statement::build(&wallet_address, &self.identity_keys(), &created_at)
+        let body = statement::body(&wallet_address, &self.identity_keys(), &created_at)?;
+        let identity_signature = self.account().sign(&body).to_base64();
+        Ok(statement::build(&body, &identity_signature))
     }
 
     /// Generates `count` one time keys and returns every unpublished one, signed.
@@ -269,6 +312,33 @@ pub fn verify_identity(
     wallet_signature: String,
 ) -> Result<VerifiedIdentity> {
     statement::verify(&statement, &wallet_address, &wallet_signature)
+}
+
+/// Compares a contact's verified identity with the one pinned for them (none the first
+/// time). Refuses an identity that is not strictly newer, or that names another wallet.
+#[uniffi::export]
+pub fn check_identity_update(
+    pinned: Option<VerifiedIdentity>,
+    candidate: VerifiedIdentity,
+) -> Result<IdentityUpdate> {
+    statement::check_update(pinned.as_ref(), &candidate)
+}
+
+/// The safety number of a conversation, from both verified identities (as returned by
+/// `verify_identity`). Both phones get the same digits whichever side computes it.
+#[uniffi::export]
+pub fn safety_number(local: VerifiedIdentity, remote: VerifiedIdentity) -> Result<SafetyNumber> {
+    safety::compute(&local, &remote)
+}
+
+/// Compares the text of a scanned QR code with this conversation's safety number.
+#[uniffi::export]
+pub fn compare_scanned_safety_code(
+    local: VerifiedIdentity,
+    remote: VerifiedIdentity,
+    scanned: String,
+) -> Result<ScanResult> {
+    safety::compare_scan(&local, &remote, &scanned)
 }
 
 /// Checks that a one time key was signed by this identity.

@@ -183,15 +183,15 @@ fn identity_statement_signed_by_the_wallet() {
     let bob = device();
     let statement = bob.identity_statement(wallet.address(), CREATED.into()).unwrap();
     let keys = bob.identity_keys();
-    assert_eq!(
-        statement,
-        format!(
-            "SOMBE chat identity v1\nprotocol:olm-v1\nwallet:{}\ncurve25519:{}\ned25519:{}\ncreated:{CREATED}",
-            wallet.address(),
-            keys.curve25519_key,
-            keys.ed25519_key
-        )
+    let body = format!(
+        "SOMBE chat identity v2\nprotocol:olm-v1\nwallet:{}\ncurve25519:{}\ned25519:{}\ncreated:{CREATED}",
+        wallet.address(),
+        keys.curve25519_key,
+        keys.ed25519_key
     );
+    let (signed, identity_signature) = statement.rsplit_once('\n').unwrap();
+    assert_eq!(signed, body);
+    assert!(identity_signature.starts_with("identity_signature:"));
     let signature = wallet.sign(&statement);
 
     let verified = verify_identity(statement.clone(), wallet.address(), signature.clone()).unwrap();

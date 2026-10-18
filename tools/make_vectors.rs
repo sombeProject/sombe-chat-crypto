@@ -1,10 +1,13 @@
 //! Writes vectors/v1.json: fixed inputs and outputs any implementation of PROTOCOL.md
 //! must reproduce (wallet signature, statement, one time key signature, content, an edit
-//! and a reaction content (since 0.2.0), and a first message that decrypts with the pickled account). Run once; the file is
+//! and a reaction content (since 0.2.0), a first message that decrypts with the pickled
+//! account, and a safety number (since 0.3.0)). Run once; the file is
 //! committed and checked by tests/vectors.rs. Never use these keys for anything real.
 
 use serde_json::json;
-use sombe_chat_crypto::{encode_content, ChatCrypto, ContentKind, MessageContent};
+use sombe_chat_crypto::{
+    encode_content, safety_number, verify_identity, ChatCrypto, ContentKind, MessageContent, VerifiedIdentity,
+};
 use vodozemac::Ed25519SecretKey;
 
 const PICKLE_KEY: [u8; 32] = [0x42; 32];
@@ -59,6 +62,18 @@ fn main() {
     let reaction_plaintext = encode_content(reaction.clone()).unwrap();
 
     let alice = ChatCrypto::create_account();
+    let alice_seed: [u8; 32] = std::array::from_fn(|i| 32 + i as u8);
+    let alice_wallet = Ed25519SecretKey::from_slice(&alice_seed);
+    let alice_address = bs58::encode(alice_wallet.public_key().as_bytes()).into_string();
+    let alice_statement = alice.identity_statement(alice_address.clone(), CREATED.into()).unwrap();
+    let alice_signature =
+        bs58::encode(alice_wallet.sign(alice_statement.as_bytes()).to_bytes()).into_string();
+    let alice_identity =
+        verify_identity(alice_statement.clone(), alice_address, alice_signature.clone()).unwrap();
+    let bob_identity =
+        verify_identity(statement.clone(), wallet_address.clone(), wallet_signature.clone()).unwrap();
+    let safety = safety_number(alice_identity.clone(), bob_identity.clone()).unwrap();
+
     let first = alice
         .encrypt_for(
             bob.identity_keys(),
@@ -110,6 +125,14 @@ fn main() {
             "body": edit.body,
             "plaintext": edit_plaintext,
         },
+        "safety_number": {
+            "local": identity_json(&alice_identity),
+            "local_statement": alice_statement,
+            "local_wallet_signature": alice_signature,
+            "remote": identity_json(&bob_identity),
+            "digits": safety.digits,
+            "qr_payload": safety.qr_payload,
+        },
         "reaction_content": {
             "conversation_id": reaction.conversation_id,
             "client_message_id": reaction.client_message_id,
@@ -123,6 +146,15 @@ fn main() {
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, serde_json::to_string_pretty(&vectors).unwrap() + "\n").unwrap();
     println!("wrote {}", path.display());
+}
+
+fn identity_json(identity: &VerifiedIdentity) -> serde_json::Value {
+    json!({
+        "wallet_address": identity.wallet_address,
+        "curve25519_key": identity.curve25519_key,
+        "ed25519_key": identity.ed25519_key,
+        "created_at": identity.created_at,
+    })
 }
 
 fn hex(bytes: &[u8]) -> String {

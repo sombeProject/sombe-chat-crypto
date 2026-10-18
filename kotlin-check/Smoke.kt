@@ -3,9 +3,15 @@
 import org.sombe.chatcrypto.ChatCrypto
 import org.sombe.chatcrypto.ChatCryptoException
 import org.sombe.chatcrypto.ContentKind
+import org.sombe.chatcrypto.IdentityUpdate
 import org.sombe.chatcrypto.MessageContent
+import org.sombe.chatcrypto.ScanResult
+import org.sombe.chatcrypto.VerifiedIdentity
+import org.sombe.chatcrypto.checkIdentityUpdate
+import org.sombe.chatcrypto.compareScannedSafetyCode
 import org.sombe.chatcrypto.decodeContent
 import org.sombe.chatcrypto.encodeContent
+import org.sombe.chatcrypto.safetyNumber
 import org.sombe.chatcrypto.verifyOneTimeKey
 
 fun check(condition: Boolean, what: String) {
@@ -87,6 +93,35 @@ fun main() {
         check(true, "following message without a session throws NoMatchingSession")
     }
 
-    listOf(alice, bob, restored).forEach { it.close() }
+    // Identities as verifyIdentity returns them (the wallet signatures are checked in Rust tests).
+    fun identity(of: ChatCrypto, wallet: String, created: String) = VerifiedIdentity(
+        walletAddress = wallet,
+        curve25519Key = of.identityKeys().curve25519Key,
+        ed25519Key = of.identityKeys().ed25519Key,
+        createdAt = created,
+    )
+    val aliceId = identity(alice, "AliceWallet", "2026-10-14T18:30:01.183Z")
+    val bobId = identity(bob, "BobWallet", "2026-10-14T18:30:01.183Z")
+    val code = safetyNumber(aliceId, bobId)
+    check(code == safetyNumber(bobId, aliceId), "both phones get the same safety number")
+    check(code.digits.length == 60 && code.groups.size == 12, "60 digits in 12 groups")
+    check(compareScannedSafetyCode(aliceId, bobId, code.qrPayload) == ScanResult.MATCH, "scanned code matches")
+    check(
+        compareScannedSafetyCode(aliceId, bobId, "https://example.com") == ScanResult.NOT_A_SAFETY_CODE,
+        "a foreign QR code is not a safety code",
+    )
+
+    val bobNewPhone = ChatCrypto.createAccount()
+    val bobLater = identity(bobNewPhone, "BobWallet", "2026-10-15T09:00:00Z")
+    check(checkIdentityUpdate(null, bobId) == IdentityUpdate.NEW, "first identity is pinned")
+    check(checkIdentityUpdate(bobId, bobLater) == IdentityUpdate.CHANGED, "a newer identity is a change")
+    try {
+        checkIdentityUpdate(bobLater, bobId)
+        check(false, "an older identity must throw")
+    } catch (e: ChatCryptoException.StaleIdentity) {
+        check(true, "an older identity is refused")
+    }
+
+    listOf(alice, bob, restored, bobNewPhone).forEach { it.close() }
     println("Kotlin ${KotlinVersion.CURRENT}: all checks passed")
 }
