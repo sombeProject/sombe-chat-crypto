@@ -5,6 +5,14 @@ use sombe_chat_crypto::*;
 
 const CREATED: &str = "2026-10-14T18:30:01.183Z";
 
+/// The content JSON without its `pad` field, after checking the padding itself.
+fn unpadded(json: &str) -> String {
+    assert!(json.len() >= 256 && json.len().is_power_of_two(), "padded to a bucket: {}", json.len());
+    let start = json.rfind(r#","pad":""#).expect("a pad field");
+    assert!(json[start + 8..json.len() - 2].bytes().all(|b| b == b' '), "pad holds only spaces");
+    format!("{}}}", &json[..start])
+}
+
 #[test]
 fn first_message_reply_and_follow_up() {
     let alice = device();
@@ -183,15 +191,15 @@ fn identity_statement_signed_by_the_wallet() {
     let bob = device();
     let statement = bob.identity_statement(wallet.address(), CREATED.into()).unwrap();
     let keys = bob.identity_keys();
-    assert_eq!(
-        statement,
-        format!(
-            "SOMBE chat identity v1\nprotocol:olm-v1\nwallet:{}\ncurve25519:{}\ned25519:{}\ncreated:{CREATED}",
-            wallet.address(),
-            keys.curve25519_key,
-            keys.ed25519_key
-        )
+    let body = format!(
+        "SOMBE chat identity v2\nprotocol:olm-v1\nwallet:{}\ncurve25519:{}\ned25519:{}\ncreated:{CREATED}",
+        wallet.address(),
+        keys.curve25519_key,
+        keys.ed25519_key
     );
+    let (signed, identity_signature) = statement.rsplit_once('\n').unwrap();
+    assert_eq!(signed, body);
+    assert!(identity_signature.starts_with("identity_signature:"));
     let signature = wallet.sign(&statement);
 
     let verified = verify_identity(statement.clone(), wallet.address(), signature.clone()).unwrap();
@@ -250,7 +258,7 @@ fn content_round_trip_and_rules() {
     };
     let json = encode_content(content.clone()).unwrap();
     assert_eq!(
-        json,
+        unpadded(&json),
         r#"{"v":1,"conversation_id":"6f1c2a8e-0000-4000-8000-000000000001","client_message_id":"6f1c2a8e-0000-4000-8000-000000000002","kind":"text","body":"Bonjour","reply_excerpt":"Dimanche à midi"}"#
     );
     assert_eq!(decode_content(json).unwrap(), content);
@@ -291,7 +299,7 @@ fn edit_content_rules() {
     };
     let json = encode_content(edit.clone()).unwrap();
     assert_eq!(
-        json,
+        unpadded(&json),
         r#"{"v":1,"conversation_id":"6f1c2a8e-0000-4000-8000-000000000001","client_message_id":"6f1c2a8e-0000-4000-8000-000000000003","kind":"edit","body":"Je t’envoie pour le marché","edits_message_id":"6f1c2a8e-0000-4000-8000-000000000002"}"#
     );
     assert_eq!(decode_content(json).unwrap(), edit);
@@ -341,7 +349,7 @@ fn reaction_content_rules() {
     };
     let json = encode_content(reaction.clone()).unwrap();
     assert_eq!(
-        json,
+        unpadded(&json),
         r#"{"v":1,"conversation_id":"6f1c2a8e-0000-4000-8000-000000000001","client_message_id":"6f1c2a8e-0000-4000-8000-000000000004","kind":"reaction","body":"❤️","reacts_to_message_id":"6f1c2a8e-0000-4000-8000-000000000002"}"#
     );
     assert_eq!(decode_content(json).unwrap(), reaction);
@@ -412,4 +420,66 @@ fn message_after_several_skipped_ones_still_decrypts() {
     let next = alice.encrypt_for(bob.identity_keys(), Some(session), None, "lu".into(), key()).unwrap();
     let got = bob.decrypt_from(alice.identity_keys(), vec![reply.session], next.envelope, key()).unwrap();
     assert_eq!(got.plaintext, "lu");
+}
+
+#[test]
+fn content_is_padded_to_a_size_bucket() {
+    let text = |body: &str| MessageContent {
+        conversation_id: "6f1c2a8e-0000-4000-8000-000000000001".into(),
+        client_message_id: "6f1c2a8e-0000-4000-8000-000000000002".into(),
+        kind: ContentKind::Text,
+        body: Some(body.into()),
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: None,
+        reacts_to_message_id: None,
+    };
+    // "Oui" and a longer sentence look the same size to the server.
+    let short = encode_content(text("Oui")).unwrap();
+    let longer = encode_content(text("Je serai là vers midi, garde-moi une place")).unwrap();
+    assert_eq!(short.len(), 256);
+    assert_eq!(longer.len(), 256);
+
+    // Larger contents go to the next power of two, up to the longest text allowed.
+    assert_eq!(encode_content(text(&"a".repeat(300))).unwrap().len(), 512);
+    assert_eq!(encode_content(text(&"é".repeat(4000))).unwrap().len(), 8192);
+    let longest = encode_content(text(&"😀".repeat(4000))).unwrap();
+    assert_eq!(longest.len(), 16384);
+    assert_eq!(decode_content(longest).unwrap(), text(&"😀".repeat(4000)));
+
+    // Content from a phone built before padding (0.2.0) is still read.
+    let unpadded = r#"{"v":1,"conversation_id":"a","client_message_id":"b","kind":"text","body":"x"}"#;
+    assert_eq!(decode_content(unpadded.into()).unwrap().body.as_deref(), Some("x"));
+}
+
+#[test]
+fn reaction_removal_is_encrypted_content() {
+    let removal = MessageContent {
+        conversation_id: "6f1c2a8e-0000-4000-8000-000000000001".into(),
+        client_message_id: "6f1c2a8e-0000-4000-8000-000000000005".into(),
+        kind: ContentKind::ReactionRemove,
+        body: None,
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: None,
+        reacts_to_message_id: Some("6f1c2a8e-0000-4000-8000-000000000002".into()),
+    };
+    let json = encode_content(removal.clone()).unwrap();
+    assert_eq!(
+        unpadded(&json),
+        r#"{"v":1,"conversation_id":"6f1c2a8e-0000-4000-8000-000000000001","client_message_id":"6f1c2a8e-0000-4000-8000-000000000005","kind":"reaction_remove","reacts_to_message_id":"6f1c2a8e-0000-4000-8000-000000000002"}"#
+    );
+    assert_eq!(decode_content(json).unwrap(), removal);
+
+    // It names its text and nothing else.
+    for wrong in [
+        MessageContent { reacts_to_message_id: None, ..removal.clone() },
+        MessageContent { reacts_to_message_id: Some(String::new()), ..removal.clone() },
+        MessageContent { body: Some("❤️".into()), ..removal.clone() },
+        MessageContent { reply_excerpt: Some("x".into()), ..removal.clone() },
+        MessageContent { comment: Some("x".into()), ..removal.clone() },
+        MessageContent { edits_message_id: Some("c".into()), ..removal },
+    ] {
+        assert!(encode_content(wrong.clone()).is_err(), "{wrong:?}");
+    }
 }

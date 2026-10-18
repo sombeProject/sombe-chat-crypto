@@ -1,49 +1,73 @@
 {
   "description": "SOMBE chat crypto test vectors, protocol olm-v1. Test keys only.",
+  "edit_content": {
+    "body": "Salut ! Tu es rentrée ?",
+    "client_message_id": "2d9a6f8c-5e3b-4a0c-9f4d-7b8c9e0f1a23",
+    "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
+    "edits_message_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
+    "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"2d9a6f8c-5e3b-4a0c-9f4d-7b8c9e0f1a23\",\"kind\":\"edit\",\"body\":\"Salut ! Tu es rentrée ?\",\"edits_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"pad\":\"                  \"}"
+  },
   "first_message": {
     "envelope": {
-      "ciphertext": "Awog+8vCPZkxmmiR+DWX5CsBlswxFX3mnUURZbInWv8bQDoSIBQWo9ufWUHVii6qA9lDp4ftRhbIzDjguK4gbZf/6Lg8GiAS672m8gbMtc/IyDc0tYX1Q3K6rKUAsCj1J1rZPJM4KyLgAQMKIEreJIexTRvSKEUPgZ0nsOY73pGHMPEb9kaY4SiO23hjEAAisAEdBKgPNKqIsNBbkSs9tFPkWFvyjKi/gXsgeeMIE+ZVwxOulktGpgebeupSvnL7V1i9xJeEOgS9eSGDT0gdNXHfUQr1z/oAAKVBnFn9lh98smRIlKCMfuKvXDBaVVogDebPiJgRZVyx01VMIG0vGGtQWhCcjflxehvrIFhfvzxMutk1ERzRSIQQzgSxzRpq3AdfitchA/nrjUFr8Lui+a4hPKVprncXzP99qGRQJjMVAaJ5ObGhNvHc",
+      "ciphertext": "AwogexrI37rsSh0yORvhFilGdnmApLYwCatlEmMoZYPKlngSIE3minlO3kXfwlYHUsddliMQNRDZ2y7FYCl4U2H4JN9UGiA9+kv291mpb4EQf7QDGkSbxqMQYKTpX+voV5hHG41gLyLAAgMKIIlzrdEjdmkY6Go19RaHsPDaJVcQLUta0U4wgTxe3rYEEAAikALR4lv/iZ9jF4YOGsEYumfvcfpkALhM3ewxR8iZOu5oZQxGQA8kcJTSm6JUDUdF/a7AbS2JpJADfc2gslnRahuzEgzPaMPbl4rTgm4GGBkFjBI6tpUvo+1DAMJKSLgj5dshi6SVe0Vg4JoZy4nDCiSxN/l58DPqkSdwIjwEYC89YA3fKiHk6i9fWTdHQPnUB4NWlRgmFHqKA35F9bFwvhr59eTmRa3zVigoo242ny54sMyj7oxiZ37fJr+8wkQnT0Wesq8X3huxJTXbQ58x6/EB0c3o7/6hvWQ9ji7cUdv3mmpFdoqzFbTjuck5d7Rcyh4EM8izfxGCiKpzko5DJ3vznp5iNvGCSnAkJiYOL4RYqdJTvPaRvAdm",
       "olm_type": 0,
       "protocol": "olm-v1"
     },
-    "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"kind\":\"text\",\"body\":\"Salut ! Tu es rentré ?\"}",
+    "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"kind\":\"text\",\"body\":\"Salut ! Tu es rentré ?\",\"pad\":\"                                                                             \"}",
     "sender": {
-      "curve25519_key": "Euu9pvIGzLXPyMg3NLWF9UNyuqylALAo9Sda2TyTOCs",
-      "ed25519_key": "5D42yV/Bvy8ljY8lqWigtssyxcoA71Z/LOY28nfHTdQ"
+      "curve25519_key": "PfpL9vdZqW+BEH+0AxpEm8ajEGCk6V/r6FeYRxuNYC8",
+      "ed25519_key": "BfmJyj43XPXpjjsN3wqwjKISz8/ADvF1mphvxx5IzEU"
     }
   },
   "identity": {
-    "account_pickle": "1MhlaZiGRoWwGf1xqUfWiogyMrHXjhoZ3Miv1fOLyfWE7cvgQSS/7uGgUPzUDf6n33QUoWoxA/82/lOARxp3DzPb6LtYWltHpBFXGmfrcljInPZAS7a3p/zImpRb6ENtR37lUW9imEJGS+A6B67Ygv8WRv5hIu82SQ+tgkV9BDqCspx2Ed0vwEbZfrIXrrG8MVlOyAmqGxQ/Ve1qZjVkwsvMtOudfVLcwBy+UY5xkdrPGlwDuP9lxZVRaNIIjP3d5jArFaJzt0j2SKXyzuSSg2ZOqjdlXx0KBHYAj608Vx9wtHkEmeJ0e0ElY4cx0Mb1Om3mCYO/zTkDoJv4KFRZHhqjyAZQU7Xd4cdx7SnhDHv98tTvIA2s8D43asd5woaAU3dXuwu9ID0LPy/45zT/acmGXxudp7xw+ztDgBqxa53/dS2L5GWtjNsZgDCH7hu3BTC48/MpDKXHQrW2pa7Ge8Pg+8cfb3WyEI7dR3PmXOmTy+beOmzDse9USgfjJ6tbzEPqgONXXwc+jsdoduS83oqdHb7RLjl/JwVYzela4LoqxkOfH8Vnzejs2ohU6EQFwUhGalSpnvs2MUSAoYTw+mjfS/4fEsRsT6CbFj5QZrj4LhyZw1TH71JfTjttA8mFDoHRsn4lWHTf6Z9gO1HEK4jxneLt4tBUegDsgs73ng1Ctg2AnC1GQ7yFJw0bTb3rRxGp1ztxay4/IhRA9i8Ysi8+o4W4TXAxP14jH94wedShXqCk2vhixg",
+    "account_pickle": "1MhlaZiGRoWwGf1xqUfWiqkMivY9qQsHmsgdT+MuKfHkifkmN+gu1vMF4Jh3K4Lm6yLtbsAIutlLhn8llLb5AtNbnIF/GESnZbsrYG3hJGZ+XXhVqyrqIGwFVRtmOD7dfIYifppNCRGlOhEk/9sQA0anQe0Yf5KDIiemfdfXM13IaqmLvlzMADhbVZ4IkvViodhfce18yR9KTWm4eKdmQwmncuq3amuXfYOTsFA4G+Q2WiJOI9361WU8M2DuV9CO/wHqwecuQvPGyF8T7uxEotHMpxxuA4w0KLxAp41JVX1RsS24IfPZO3TVjKOATEKNe1/fgK6i+KNZEgeYhNZr/Sk2N+MX3WPg+M+EsDlDaVJLLVK1HxH+C0PK90Jnze7HfOf9VCsm8/ElnCOCWHebkhnonMZj5ZDie2KdlLgYupFVkkPVybYzEcRjyo5GyvwmEeD2pflpg1RLXjglsJeLqeBNmcsuWSTAQ1ZgjhRCu6sV5qvT6QtkxQ6jFjF9W7eHwjVQcYdL9/toPrZlzpqUFEFonInN3zUvlVszF6j1JUwkzOR+qNLsuWLTSJ3jdKNcPnU75CCd4Um0rZjOzrZQN/b+O24GLdpaHapjHNrNrmfmbK/oHB96XJnH5FUqy7a3fZxbSJXFu+iN2G6ogeq0rJA0CKlrYEhku5Aow3e/JTXXjMIOYTIIA1HopXJXCDfGcJurZ5Bb/YSuD21l309A94/ZFax5qy5EANn2P3iwPQAEiX0LTt2SNg",
     "created_at": "2026-10-14T18:30:01.183Z",
-    "curve25519_key": "0Sd6a0Rypes1xUevMdDDDaWmNZDCl+rqZ90yoE+Tcis",
-    "ed25519_key": "FtONqedxKjsJ2yqzPFu9ItrSVlPDAR5ahB9Q518I84I",
-    "statement": "SOMBE chat identity v1\nprotocol:olm-v1\nwallet:FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\ncurve25519:0Sd6a0Rypes1xUevMdDDDaWmNZDCl+rqZ90yoE+Tcis\ned25519:FtONqedxKjsJ2yqzPFu9ItrSVlPDAR5ahB9Q518I84I\ncreated:2026-10-14T18:30:01.183Z",
-    "wallet_signature": "4HeWZi2xv65ekCXNcpHo5Dr1i1r3C7GzMQGJwpsnPgyrW2jnpoPYnShJVBYjtPVNyA8pizaRekNzmipGWyk7zGB1"
+    "curve25519_key": "FtxeeS7LCWskoKUova+Wfkkm32IIw5sINX7ieczUpk8",
+    "ed25519_key": "PF+QWtOFyBS3FzlgkkJxuI9tb1P12QNizMCmBwbYMvA",
+    "statement": "SOMBE chat identity v2\nprotocol:olm-v1\nwallet:FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\ncurve25519:FtxeeS7LCWskoKUova+Wfkkm32IIw5sINX7ieczUpk8\ned25519:PF+QWtOFyBS3FzlgkkJxuI9tb1P12QNizMCmBwbYMvA\ncreated:2026-10-14T18:30:01.183Z\nidentity_signature:0x9I4IuUQ4k+5uIMos18eeJUkYUP8y3m8hkvXLFj9ToSMLHFUjkc1aq3Iyg1QiyAbVeK6mCK1phM+oku3qvhCQ",
+    "wallet_signature": "4e6htGSZZHrCt4mwe1tqvWJLhqFTVr6FC1trZzy4qn8DhxCJwf7T4YnD7xWCGjGo1x2cHzgQsaPNCsSajhyGBxpY"
   },
   "one_time_key": {
     "is_fallback": false,
     "key_id": "AAAAAAAAAAA",
-    "public_key": "+8vCPZkxmmiR+DWX5CsBlswxFX3mnUURZbInWv8bQDo",
-    "signature": "lpoBLhR2C7Ep46BXE5yCgTU5fw/BNb62GSWxM0s0y44r00AIaHo97rdqqHAoLBjUbhjS3YIjNXgejrKf92rHBA",
-    "signed_text": "SOMBE one-time key v1\nkey_id:AAAAAAAAAAA\ncurve25519:+8vCPZkxmmiR+DWX5CsBlswxFX3mnUURZbInWv8bQDo\nfallback:false"
+    "public_key": "exrI37rsSh0yORvhFilGdnmApLYwCatlEmMoZYPKlng",
+    "signature": "Dt9B8FTm7ge2/bd8D/LhylPRqF0opPbegQsvp8U/sNa/tlUXb0gq07c2yL6rbl9vR9Q1XahKy3R17JyzFWuEDw",
+    "signed_text": "SOMBE one-time key v1\nkey_id:AAAAAAAAAAA\ncurve25519:exrI37rsSh0yORvhFilGdnmApLYwCatlEmMoZYPKlng\nfallback:false"
   },
   "pickle_key_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+  "reaction_content": {
+    "body": "❤️",
+    "client_message_id": "4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45",
+    "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
+    "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45\",\"kind\":\"reaction\",\"body\":\"❤️\",\"reacts_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"pad\":\"                            \"}",
+    "reacts_to_message_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34"
+  },
+  "reaction_remove_content": {
+    "client_message_id": "5a2d9c1f-8b6e-4d3f-8c7a-0e1f2a3b4d56",
+    "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
+    "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"5a2d9c1f-8b6e-4d3f-8c7a-0e1f2a3b4d56\",\"kind\":\"reaction_remove\",\"reacts_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"pad\":\"                                     \"}",
+    "reacts_to_message_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34"
+  },
+  "safety_number": {
+    "digits": "304611964009038644013894805654673527011339091650447926863242",
+    "local": {
+      "created_at": "2026-10-14T18:30:01.183Z",
+      "curve25519_key": "PfpL9vdZqW+BEH+0AxpEm8ajEGCk6V/r6FeYRxuNYC8",
+      "ed25519_key": "BfmJyj43XPXpjjsN3wqwjKISz8/ADvF1mphvxx5IzEU",
+      "wallet_address": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe"
+    },
+    "local_statement": "SOMBE chat identity v2\nprotocol:olm-v1\nwallet:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\ncurve25519:PfpL9vdZqW+BEH+0AxpEm8ajEGCk6V/r6FeYRxuNYC8\ned25519:BfmJyj43XPXpjjsN3wqwjKISz8/ADvF1mphvxx5IzEU\ncreated:2026-10-14T18:30:01.183Z\nidentity_signature:dAUhkuv1YVERDunMkaGpcfrGo2eKpxBC3n5bddVYXl0MtxKBxNooTYRnGlbfQTlGRTyUs+vOSdGpt8toDMsMDA",
+    "local_wallet_signature": "5NDdLoUgprWzD7UBSA4syjcDt3oggiJn1xPQTJgG5entvAcLmniNoN4CiQSjmQB7b72EzU1tBhgvMJ9QfQsRcvtD",
+    "qr_payload": "SOMBE-SN1:304611964009038644013894805654673527011339091650447926863242",
+    "remote": {
+      "created_at": "2026-10-14T18:30:01.183Z",
+      "curve25519_key": "FtxeeS7LCWskoKUova+Wfkkm32IIw5sINX7ieczUpk8",
+      "ed25519_key": "PF+QWtOFyBS3FzlgkkJxuI9tb1P12QNizMCmBwbYMvA",
+      "wallet_address": "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF"
+    }
+  },
   "wallet": {
     "address": "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF",
     "seed_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
-  },
-  "edit_content": {
-    "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
-    "client_message_id": "2d9a6f8c-5e3b-4a0c-9f4d-7b8c9e0f1a23",
-    "edits_message_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
-    "body": "Salut ! Tu es rentrée ?",
-    "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"2d9a6f8c-5e3b-4a0c-9f4d-7b8c9e0f1a23\",\"kind\":\"edit\",\"body\":\"Salut ! Tu es rentrée ?\",\"edits_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\"}"
-  },
-  "reaction_content": {
-    "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
-    "client_message_id": "4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45",
-    "reacts_to_message_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
-    "body": "❤️",
-    "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45\",\"kind\":\"reaction\",\"body\":\"❤️\",\"reacts_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\"}"
   }
 }

@@ -124,3 +124,46 @@ fn reaction_content_is_reproducible() {
     assert_eq!(encode_content(content.clone()).unwrap(), s(&r["plaintext"]));
     assert_eq!(decode_content(s(&r["plaintext"])).unwrap(), content);
 }
+
+#[test]
+fn safety_number_is_reproducible() {
+    let v = vectors();
+    let n = &v["safety_number"];
+    let identity = |i: &Value| VerifiedIdentity {
+        wallet_address: s(&i["wallet_address"]),
+        curve25519_key: s(&i["curve25519_key"]),
+        ed25519_key: s(&i["ed25519_key"]),
+        created_at: s(&i["created_at"]),
+    };
+    let (local, remote) = (identity(&n["local"]), identity(&n["remote"]));
+    let verified = verify_identity(
+        s(&n["local_statement"]),
+        local.wallet_address.clone(),
+        s(&n["local_wallet_signature"]),
+    )
+    .unwrap();
+    assert_eq!(verified, local);
+
+    let on_local = safety_number(local.clone(), remote.clone()).unwrap();
+    assert_eq!(on_local.digits, s(&n["digits"]));
+    assert_eq!(on_local.qr_payload, s(&n["qr_payload"]));
+    assert_eq!(safety_number(remote, local).unwrap(), on_local);
+}
+
+#[test]
+fn reaction_remove_content_is_reproducible() {
+    let v = vectors();
+    let r = &v["reaction_remove_content"];
+    let content = MessageContent {
+        conversation_id: s(&r["conversation_id"]),
+        client_message_id: s(&r["client_message_id"]),
+        kind: ContentKind::ReactionRemove,
+        body: None,
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: None,
+        reacts_to_message_id: Some(s(&r["reacts_to_message_id"])),
+    };
+    assert_eq!(encode_content(content.clone()).unwrap(), s(&r["plaintext"]));
+    assert_eq!(decode_content(s(&r["plaintext"])).unwrap(), content);
+}
