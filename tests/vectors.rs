@@ -102,6 +102,7 @@ fn edit_content_is_reproducible() {
         comment: None,
         edits_message_id: Some(s(&e["edits_message_id"])),
         reacts_to_message_id: None,
+        deletes_message_id: None,
     };
     assert_eq!(encode_content(content.clone()).unwrap(), s(&e["plaintext"]));
     assert_eq!(decode_content(s(&e["plaintext"])).unwrap(), content);
@@ -120,6 +121,7 @@ fn reaction_content_is_reproducible() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: Some(s(&r["reacts_to_message_id"])),
+        deletes_message_id: None,
     };
     assert_eq!(encode_content(content.clone()).unwrap(), s(&r["plaintext"]));
     assert_eq!(decode_content(s(&r["plaintext"])).unwrap(), content);
@@ -163,7 +165,27 @@ fn reaction_remove_content_is_reproducible() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: Some(s(&r["reacts_to_message_id"])),
+        deletes_message_id: None,
     };
     assert_eq!(encode_content(content.clone()).unwrap(), s(&r["plaintext"]));
     assert_eq!(decode_content(s(&r["plaintext"])).unwrap(), content);
+}
+
+#[test]
+fn delete_content_is_reproducible() {
+    let v = vectors();
+    let d = &v["delete_content"];
+    let content = MessageContent {
+        conversation_id: s(&d["conversation_id"]),
+        client_message_id: s(&d["client_message_id"]),
+        kind: ContentKind::Delete,
+        body: None,
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: None,
+        reacts_to_message_id: None,
+        deletes_message_id: Some(s(&d["deletes_message_id"])),
+    };
+    assert_eq!(encode_content(content.clone()).unwrap(), s(&d["plaintext"]));
+    assert_eq!(decode_content(s(&d["plaintext"])).unwrap(), content);
 }

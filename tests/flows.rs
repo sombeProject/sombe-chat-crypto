@@ -255,6 +255,7 @@ fn content_round_trip_and_rules() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: None,
+        deletes_message_id: None,
     };
     let json = encode_content(content.clone()).unwrap();
     assert_eq!(
@@ -296,6 +297,7 @@ fn edit_content_rules() {
         comment: None,
         edits_message_id: Some("6f1c2a8e-0000-4000-8000-000000000002".into()),
         reacts_to_message_id: None,
+        deletes_message_id: None,
     };
     let json = encode_content(edit.clone()).unwrap();
     assert_eq!(
@@ -346,6 +348,7 @@ fn reaction_content_rules() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: Some("6f1c2a8e-0000-4000-8000-000000000002".into()),
+        deletes_message_id: None,
     };
     let json = encode_content(reaction.clone()).unwrap();
     assert_eq!(
@@ -433,6 +436,7 @@ fn content_is_padded_to_a_size_bucket() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: None,
+        deletes_message_id: None,
     };
     // "Oui" and a longer sentence look the same size to the server.
     let short = encode_content(text("Oui")).unwrap();
@@ -463,6 +467,7 @@ fn reaction_removal_is_encrypted_content() {
         comment: None,
         edits_message_id: None,
         reacts_to_message_id: Some("6f1c2a8e-0000-4000-8000-000000000002".into()),
+        deletes_message_id: None,
     };
     let json = encode_content(removal.clone()).unwrap();
     assert_eq!(
@@ -481,5 +486,59 @@ fn reaction_removal_is_encrypted_content() {
         MessageContent { edits_message_id: Some("c".into()), ..removal },
     ] {
         assert!(encode_content(wrong.clone()).is_err(), "{wrong:?}");
+    }
+}
+
+#[test]
+fn delete_is_encrypted_content() {
+    let delete = MessageContent {
+        conversation_id: "6f1c2a8e-0000-4000-8000-000000000001".into(),
+        client_message_id: "6f1c2a8e-0000-4000-8000-000000000006".into(),
+        kind: ContentKind::Delete,
+        body: None,
+        reply_excerpt: None,
+        comment: None,
+        edits_message_id: None,
+        reacts_to_message_id: None,
+        deletes_message_id: Some("6f1c2a8e-0000-4000-8000-000000000002".into()),
+    };
+    let json = encode_content(delete.clone()).unwrap();
+    assert_eq!(
+        unpadded(&json),
+        r#"{"v":1,"conversation_id":"6f1c2a8e-0000-4000-8000-000000000001","client_message_id":"6f1c2a8e-0000-4000-8000-000000000006","kind":"delete","deletes_message_id":"6f1c2a8e-0000-4000-8000-000000000002"}"#
+    );
+    assert_eq!(json.len(), 256);
+    assert_eq!(decode_content(json).unwrap(), delete);
+
+    // It names its text and nothing else.
+    for wrong in [
+        MessageContent { deletes_message_id: None, ..delete.clone() },
+        MessageContent { deletes_message_id: Some(String::new()), ..delete.clone() },
+        MessageContent { body: Some("x".into()), ..delete.clone() },
+        MessageContent { reply_excerpt: Some("x".into()), ..delete.clone() },
+        MessageContent { comment: Some("x".into()), ..delete.clone() },
+        MessageContent { edits_message_id: Some("c".into()), ..delete.clone() },
+        MessageContent { reacts_to_message_id: Some("c".into()), ..delete },
+    ] {
+        assert!(encode_content(wrong.clone()).is_err(), "{wrong:?}");
+    }
+
+    // No other kind names deletes_message_id, written or read: each is valid without it.
+    for valid in [
+        r#""kind":"text","body":"x""#,
+        r#""kind":"edit","body":"x","edits_message_id":"c""#,
+        r#""kind":"reaction","body":"❤️","reacts_to_message_id":"c""#,
+        r#""kind":"reaction_remove","reacts_to_message_id":"c""#,
+        r#""kind":"payment""#,
+    ] {
+        let json = |extra: &str| {
+            format!(r#"{{"v":1,"conversation_id":"a","client_message_id":"b",{valid}{extra}}}"#)
+        };
+        let read = decode_content(json("")).unwrap();
+        assert!(decode_content(json(r#","deletes_message_id":"d""#)).is_err(), "{valid}");
+        assert!(
+            encode_content(MessageContent { deletes_message_id: Some("d".into()), ..read }).is_err(),
+            "{valid}"
+        );
     }
 }
