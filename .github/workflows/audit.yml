@@ -1,0 +1,30 @@
+name: Audit
+
+# Fails when Cargo.lock holds a crate with a known vulnerability (RustSec
+# database). Runs weekly as well, since a new advisory can hit an unchanged
+# Cargo.lock.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_AUDIT_VERSION: "0.22.2"
+
+jobs:
+  cargo-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Toolchain from rust-toolchain.toml
+        run: rustup show
+      - run: cargo install cargo-audit --locked --version "$CARGO_AUDIT_VERSION"
+      - run: cargo audit
