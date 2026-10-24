@@ -27,6 +27,8 @@ pub enum ContentKind {
     Reaction,
     /// Removes the sender's reaction from a text (`reacts_to_message_id`), since 0.3.0.
     ReactionRemove,
+    /// Deletes one of the sender's texts for everyone (`deletes_message_id`), since 0.4.0.
+    Delete,
 }
 
 #[derive(uniffi::Record, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -50,6 +52,11 @@ pub struct MessageContent {
     #[uniffi(default = None)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reacts_to_message_id: Option<String>,
+    /// Server id of the text a `delete` removes; absent for every other kind. Added in
+    /// 0.4.0 after `reacts_to_message_id`, with a default, for the same reason.
+    #[uniffi(default = None)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deletes_message_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -88,6 +95,9 @@ fn validate(content: &MessageContent) -> Result<(), ChatCryptoError> {
     let names_reaction = matches!(content.kind, ContentKind::Reaction | ContentKind::ReactionRemove);
     if !names_reaction && content.reacts_to_message_id.is_some() {
         return Err(invalid("only a reaction or its removal names reacts_to_message_id"));
+    }
+    if content.kind != ContentKind::Delete && content.deletes_message_id.is_some() {
+        return Err(invalid("only a delete names deletes_message_id"));
     }
     match content.kind {
         ContentKind::Text => {
@@ -128,6 +138,18 @@ fn validate(content: &MessageContent) -> Result<(), ChatCryptoError> {
                 || content.edits_message_id.is_some()
             {
                 return Err(invalid("reaction removal carries only reacts_to_message_id"));
+            }
+        }
+        ContentKind::Delete => {
+            if content.deletes_message_id.as_deref().unwrap_or("").is_empty() {
+                return Err(invalid("delete needs deletes_message_id"));
+            }
+            if content.body.is_some()
+                || content.reply_excerpt.is_some()
+                || content.comment.is_some()
+                || content.edits_message_id.is_some()
+            {
+                return Err(invalid("delete carries only deletes_message_id"));
             }
         }
         ContentKind::Edit => {

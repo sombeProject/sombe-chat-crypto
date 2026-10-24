@@ -97,8 +97,8 @@ The plaintext inside the ciphertext is JSON:
 {"v":1,"conversation_id":"…","client_message_id":"…","kind":"text","body":"…","reply_excerpt":"…"}
 ```
 
-- `kind` is `text`, `payment`, (since 0.2.0) `edit` or `reaction`, or (since 0.3.0)
-  `reaction_remove`. A text has a `body` (1 to 4000
+- `kind` is `text`, `payment`, (since 0.2.0) `edit` or `reaction`, (since 0.3.0)
+  `reaction_remove`, or (since 0.4.0) `delete`. A text has a `body` (1 to 4000
   characters) and may carry `reply_excerpt` (at most 200 characters, the quoted message
   as the sender saw it). A payment carries only an optional `comment` (at most 500
   characters).
@@ -141,6 +141,23 @@ The plaintext inside the ciphertext is JSON:
   the person whose reaction it removes, and ignores a removal row without it. A server
   can still withhold any message, a removal included, but can no longer invent one. A
   phone built before 0.3.0 refuses a `reaction_remove` as unreadable content.
+- A `delete` (since 0.4.0) deletes one of the sender's texts for everyone. It carries
+  only `deletes_message_id`, the server id of that text (no `body`, `reply_excerpt`,
+  `comment`, `edits_message_id` nor `reacts_to_message_id`), and no other kind may carry
+  `deletes_message_id`:
+
+  ```json
+  {"v":1,"conversation_id":"…","client_message_id":"…","kind":"delete","deletes_message_id":"…"}
+  ```
+
+  `deletes_message_id` must equal the one on the server row. A phone applies a delete
+  only when its sender also wrote the deleted text, in the same conversation: it then
+  erases that text and its edits, shows that the message was deleted, and drops its
+  reactions and the excerpt of any reply quoting it, whichever of the delete and the
+  text arrives first. A server cannot point a delete at another message, nor make a
+  phone erase anything without one; it can only withhold a delete, or empty a ciphertext
+  it already stores. A phone built before 0.4.0 refuses a `delete` as unreadable
+  content, so the text stays on that phone.
 - `conversation_id` and `client_message_id` must equal the server row the message
   came with. A phone refuses content that does not match, so the server can neither
   move a message to another conversation nor replay it as a new one.

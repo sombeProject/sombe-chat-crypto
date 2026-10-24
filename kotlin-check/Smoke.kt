@@ -83,6 +83,20 @@ fun main() {
         body = null,
     )
     check(decodeContent(encodeContent(removal)) == removal, "a reaction removal round trips")
+    check(removal.deletesMessageId == null, "a removal built without deletesMessageId still works")
+    val delete = content.copy(
+        clientMessageId = "6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67",
+        kind = ContentKind.DELETE,
+        body = null,
+        deletesMessageId = "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
+    )
+    check(decodeContent(encodeContent(delete)) == delete, "a delete round trips")
+    try {
+        encodeContent(content.copy(deletesMessageId = delete.deletesMessageId))
+        check(false, "a text naming deletesMessageId must throw")
+    } catch (e: ChatCryptoException.InvalidContent) {
+        check(true, "a text naming deletesMessageId is refused")
+    }
     check(
         encodeContent(content).encodeToByteArray().size == 256 && encodeContent(removal).encodeToByteArray().size == 256,
         "contents are padded to 256 bytes",
