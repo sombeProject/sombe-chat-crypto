@@ -16,6 +16,11 @@ cargo test                      # Rust tests and test vectors
 cargo run --bin make-vectors    # only to regenerate the vectors (a protocol change)
 ```
 
+vodozemac is a crates.io dependency pinned with `=`, never copied into this repository.
+Dependabot proposes each new version of it and of the other dependencies, and the
+`Audit` workflow (`cargo audit`, on every pull request and weekly) fails on a known
+vulnerability in `Cargo.lock`.
+
 The CI also compiles the generated Kotlin bindings with Kotlin 1.7.21 (the app's
 version) and runs them on the JVM, then builds the Android AAR for `arm64-v8a`,
 `armeabi-v7a` and `x86_64`.

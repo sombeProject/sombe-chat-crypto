@@ -1,0 +1,14 @@
+# Proposes a pull request when a dependency (vodozemac, uniffi, ...) or a
+# pinned GitHub Action has a new version, and raises an alert on a known
+# vulnerability. vodozemac stays pinned with "=": every update is read, then
+# shipped as a new release whose SHA-256 the app pins in chat-crypto.lock.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
