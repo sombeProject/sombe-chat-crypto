@@ -11,7 +11,8 @@ an identity signed by the person's Solana wallet, signed one time keys, the enve
 the content format, and the safety number two people compare. Nothing here invents new
 cryptography.
 
-`vectors/v1.json` holds test vectors for every format below.
+`vectors/v1.json` holds test vectors for every format below (written by 0.4.0), and
+`vectors/v2.json` those of content version 2 (since 0.5.0).
 
 ## Identity
 
@@ -91,7 +92,98 @@ which identity a message was meant for.
 
 ## Content
 
-The plaintext inside the ciphertext is JSON:
+The plaintext inside the ciphertext is a JSON object. Its field `v` is the content
+version. Since 0.5.0 a phone writes only version 2 and reads versions 1 and 2. The app
+never builds nor reads this JSON itself: it calls `encode_content` and `decode_content`
+with a `Content` record, whose `body` has one variant per kind.
+
+### Version 2 (since 0.5.0)
+
+Every element the server delivers is a closed envelope: the server no longer sees its
+kind, its target, its client id, nor whether it is a delivery or read receipt. Typing
+signals travel through the websocket as the same kind of envelope, never stored.
+
+```json
+{"v":2,"kind":"text","conversation_id":"…","envelope_id":"…","client_message_id":"…","body":"…","reply_to_message_id":"…","reply_excerpt":"…","pad":"   …"}
+```
+
+Fields come in this order: `v`, `kind`, `conversation_id`, `envelope_id`, then the
+fields of the kind in the order of the table, then `pad`. Every content has `v` (2),
+`kind` and `conversation_id`. Every kind but `typing` has `envelope_id`, the random id
+the sending phone drew for this envelope; a `typing` never has one (it is never stored).
+
+| `kind` | Its own fields | Channel |
+|---|---|---|
+| `text` | `client_message_id`, `body` (1 to 4000 characters, not blank), `reply_to_message_id` (optional), `reply_excerpt` (optional, at most 200 characters) | mailbox |
+| `edit` | `client_message_id`, `edits_message_id`, `body` (1 to 4000 characters, not blank) | mailbox |
+| `reaction` | `client_message_id`, `reacts_to_message_id`, `body` (one emoji: 1 to 16 code points, no white space) | mailbox |
+| `reaction_remove` | `client_message_id`, `reacts_to_message_id` | mailbox |
+| `delete` | `client_message_id`, `deletes_message_id` | mailbox |
+| `payment` | `client_message_id`, `body` (the card's comment or note, 1 to 500 characters, not blank) | mailbox, with its card |
+| `receipt` | `status` (`delivered` or `read`), `up_to_envelope_id`, `up_to_created_at` | mailbox |
+| `typing` | `state` (`start` or `stop`) | websocket only |
+
+Rules, all checked by the module, when written and when read:
+
+- A version 2 content has exactly these fields, no more, no fewer (an optional field may
+  be absent or `null`; `pad` is ignored when read). An unknown field is
+  `InvalidContent`: a later addition goes through a version 3.
+- `conversation_id`, `envelope_id`, `client_message_id`, every target
+  (`reply_to_message_id`, `edits_message_id`, `reacts_to_message_id`,
+  `deletes_message_id`) and `up_to_envelope_id` are well formed UUIDs (8-4-4-4-12
+  hexadecimal digits). They are written and returned in lower case, whatever case the
+  caller gave. A target is the envelope id of the targeted element.
+- `up_to_created_at` is an RFC 3339 date with its offset (`Z` or `+hh:mm`), as the
+  server gave it, for example `2026-11-04T12:34:56.789Z`. The module compares it with
+  nothing.
+- `envelope_id` is required on every kind but `typing`, and forbidden on `typing`.
+- An unknown `kind`, or a `v` above 2, is `UnsupportedContent`: the message is authentic
+  but this phone cannot show it. It is never read as another kind. A malformed content
+  of a known kind is `InvalidContent`.
+
+What the module does not check, and the app does: that `conversation_id` and
+`envelope_id` equal the element they came with (so a server can neither move an
+envelope to another conversation nor replay it under another id), that each kind came
+through its channel (the websocket accepts only `typing`, the mailbox everything but
+`typing`), the author and time windows of an edit or delete, and until when a version 1
+content is still accepted. The module draws no random value: the app draws
+`envelope_id`.
+
+A receipt covers every visible message of the conversation whose server date is at or
+before the one of `up_to_envelope_id` (or `up_to_created_at`, when the phone no longer
+has that message). A receipt never causes a receipt.
+
+Padding is unchanged from version 1 (below): the smallest power of two, at least 256
+bytes, that holds the JSON. A `typing` is always in the smallest bucket (256 bytes, its
+JSON is about 96 bytes), and a `receipt` always in the next one (512 bytes: its JSON is at
+least 251 bytes, more than the 247 that fit with the `pad` field in 256), the bucket of
+a medium text. A short text and a payment comment stay at 256 bytes; an edit, a
+reaction, its removal and a delete now land at 512 bytes, since `envelope_id` adds 53
+bytes. Encrypted on a confirmed session (Olm type 1), a `typing` is a ciphertext of 427
+base64 characters, well under the 2048 the server relays.
+
+`vectors/v2.json` holds one padded content of each kind, how each version 1 kind is
+read, and contents that must be refused (`UnsupportedContent` or `InvalidContent`).
+
+### Reading version 1
+
+A version 1 content is read with the rules of 0.4.0 (below; unknown fields ignored, ids
+only checked to be present) and returned with `version` 1 and no `envelope_id`, every id
+in lower case:
+
+| Version 1 `kind` | Variant | Mapping |
+|---|---|---|
+| `text` | `Text` | `body` and `reply_excerpt` kept; `reply_to_message_id` absent (a version 1 quote had only an excerpt) |
+| `payment` | `Payment` | its `comment` becomes `body`; empty when the card had none |
+| `edit` | `Edit` | `edits_message_id` and `body` |
+| `reaction` | `Reaction` | `reacts_to_message_id` and `body` |
+| `reaction_remove` | `ReactionRemove` | `reacts_to_message_id` |
+| `delete` | `Delete` | `deletes_message_id` |
+| any other | none | `UnsupportedContent` (0.4.0 had no fallback either) |
+
+### Version 1 (read only since 0.5.0)
+
+Up to 0.4.0 the plaintext was this JSON. Since 0.5.0 it is still read, never written.
 
 ```json
 {"v":1,"conversation_id":"…","client_message_id":"…","kind":"text","body":"…","reply_excerpt":"…"}
@@ -177,6 +269,11 @@ The plaintext inside the ciphertext is JSON:
 - Each message is decrypted once. The app stores the plaintext and the advanced session
   in the same database transaction, and resends an encrypted message with the exact same
   bytes, never encrypting it twice.
+- Gaps (measured on vodozemac 0.11.1 by `tests/content.rs`): a message still decrypts
+  after up to 2000 messages the receiver never got (typing signals dropped while the
+  contact was offline), not after 2001. A message overtaken by a later one (a mailbox
+  message read after a typing signal sent after it) can be read late only if that later
+  one was at most 40 messages ahead of it; its key is lost otherwise.
 - Accounts and sessions are stored only on the phone, as vodozemac pickles encrypted
   with a 32 byte key, and are never backed up or sent anywhere.
 

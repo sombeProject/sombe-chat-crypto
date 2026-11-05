@@ -4,11 +4,13 @@ use vodozemac::Ed25519SecretKey;
 #[allow(dead_code)]
 pub const PICKLE_KEY: [u8; 32] = [7; 32];
 
+#[allow(dead_code)]
 /// A stand in for a Solana wallet: an ed25519 key whose public half, in base58, is the address.
 pub struct TestWallet {
     secret: Ed25519SecretKey,
 }
 
+#[allow(dead_code)]
 impl TestWallet {
     pub fn from_seed(seed: [u8; 32]) -> Self {
         Self { secret: Ed25519SecretKey::from_slice(&seed) }

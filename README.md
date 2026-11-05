@@ -7,13 +7,14 @@ no business logic: no networking, no storage, no payments.
 
 - [PROTOCOL.md](PROTOCOL.md): identity signed by the wallet, one time keys, envelope,
   content format, session rules, identity pinning, safety number.
-- [vectors/v1.json](vectors/v1.json): test vectors for every format.
+- [vectors/v1.json](vectors/v1.json): test vectors for every format (written by 0.4.0).
+- [vectors/v2.json](vectors/v2.json): content version 2, one vector per kind (since 0.5.0).
 
 ## Build and test
 
 ```bash
 cargo test                      # Rust tests and test vectors
-cargo run --bin make-vectors    # only to regenerate the vectors (a protocol change)
+cargo run --bin make-vectors    # regenerates vectors/v2.json (deterministic); v1.json is frozen
 ```
 
 vodozemac is a crates.io dependency pinned with `=`, never copied into this repository.
@@ -49,6 +50,14 @@ val code = safetyNumber(me, contact)              // 60 digits and the QR text t
 compareScannedSafetyCode(me, contact, scannedText) // Match, Mismatch or NotASafetyCode
 val sent = account.encryptFor(remote, session, claimedKey, plaintext, pickleKey)
 val read = account.decryptFrom(remote, sessions, envelope, pickleKey)
+
+// Content (since 0.5.0): one variant per kind, version 2 written, versions 1 and 2 read.
+val json = encodeContent(Content(2u, conversationId, envelopeId, ContentBody.Text(clientId, "Salut", null, null)))
+when (val body = decodeContent(read.plaintext).body) {   // UnsupportedContent: authentic, not shown
+    is ContentBody.Receipt -> body.status                   // InvalidContent: kept as unreadable
+    is ContentBody.Typing -> body.state
+    else -> Unit
+}
 ```
 
 Sessions travel in and out of each call as encrypted pickles, so the app can store the

@@ -2,10 +2,12 @@
 // then run on the JVM with the host library: proves the bindings work from that Kotlin.
 import org.sombe.chatcrypto.ChatCrypto
 import org.sombe.chatcrypto.ChatCryptoException
-import org.sombe.chatcrypto.ContentKind
+import org.sombe.chatcrypto.Content
+import org.sombe.chatcrypto.ContentBody
 import org.sombe.chatcrypto.IdentityUpdate
-import org.sombe.chatcrypto.MessageContent
+import org.sombe.chatcrypto.ReceiptStatus
 import org.sombe.chatcrypto.ScanResult
+import org.sombe.chatcrypto.TypingState
 import org.sombe.chatcrypto.VerifiedIdentity
 import org.sombe.chatcrypto.checkIdentityUpdate
 import org.sombe.chatcrypto.compareScannedSafetyCode
@@ -28,78 +30,70 @@ fun main() {
     bob.markKeysPublished()
     check(verifyOneTimeKey(bob.identityKeys(), otk), "one time key signature verifies")
 
-    val content = MessageContent(
-        conversationId = "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
-        clientMessageId = "1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12",
-        kind = ContentKind.TEXT,
-        body = "Salut ! Tu es rentré ?",
-        replyExcerpt = null,
-        comment = null,
+    val conversation = "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01"
+    val target = "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34"
+    val content = Content(
+        version = 2u,
+        conversationId = conversation,
+        envelopeId = "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+        body = ContentBody.Text(
+            clientMessageId = "1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12",
+            body = "Salut ! Tu es rentré ?",
+            replyToMessageId = null,
+            replyExcerpt = null,
+        ),
     )
     val first = alice.encryptFor(bob.identityKeys(), null, otk, encodeContent(content), key)
     check(first.envelope.olmType.toInt() == 0, "first message is type 0")
 
     val received = bob.decryptFrom(alice.identityKeys(), emptyList(), first.envelope, key)
     check(decodeContent(received.plaintext) == content, "bob reads alice's first message")
-    check(content.editsMessageId == null, "a text built without editsMessageId (as in 0.1.0) still works")
 
-    val edit = MessageContent(
-        conversationId = content.conversationId,
-        clientMessageId = "2d9a6f8c-5e3b-4a0c-9f4d-7b8c9e0f1a23",
-        kind = ContentKind.EDIT,
-        body = "Salut ! Tu es rentrée ?",
-        replyExcerpt = null,
-        comment = null,
-        editsMessageId = "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
+    // One variant per kind, each read back as itself.
+    val bodies = listOf(
+        ContentBody.Edit("2d9a6f8c-5e3b-4a0c-9f4d-7b8c9e0f1a23", target, "Salut ! Tu es rentrée ?"),
+        ContentBody.Reaction("4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45", target, "❤️"),
+        ContentBody.ReactionRemove("5a2d9c1f-8b6e-4d3f-8c7a-0e1f2a3b4d56", target),
+        ContentBody.Delete("6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67", target),
+        ContentBody.Payment("f4c19abd-8f6c-4b3d-9a7e-0c1d2e3f4a56", "Pour le marché"),
+        ContentBody.Receipt(ReceiptStatus.READ, content.envelopeId!!, "2026-11-04T12:34:56Z"),
     )
-    check(decodeContent(encodeContent(edit)) == edit, "an edit round trips")
-    try {
-        encodeContent(edit.copy(editsMessageId = null))
-        check(false, "an edit without target must throw")
-    } catch (e: ChatCryptoException.InvalidContent) {
-        check(true, "an edit without edits_message_id is refused")
+    for (body in bodies) {
+        val each = content.copy(body = body)
+        check(decodeContent(encodeContent(each)) == each, "${body::class.simpleName} round trips")
     }
-    check(edit.reactsToMessageId == null, "an edit built without reactsToMessageId still works")
-
-    val reaction = MessageContent(
-        conversationId = content.conversationId,
-        clientMessageId = "4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45",
-        kind = ContentKind.REACTION,
-        body = "❤️",
-        replyExcerpt = null,
-        comment = null,
-        reactsToMessageId = "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
-    )
-    check(decodeContent(encodeContent(reaction)) == reaction, "a reaction round trips")
-    try {
-        encodeContent(reaction.copy(body = "👍 👍"))
-        check(false, "a reaction with a space must throw")
-    } catch (e: ChatCryptoException.InvalidContent) {
-        check(true, "a reaction with a space is refused")
-    }
-    val removal = reaction.copy(
-        clientMessageId = "5a2d9c1f-8b6e-4d3f-8c7a-0e1f2a3b4d56",
-        kind = ContentKind.REACTION_REMOVE,
-        body = null,
-    )
-    check(decodeContent(encodeContent(removal)) == removal, "a reaction removal round trips")
-    check(removal.deletesMessageId == null, "a removal built without deletesMessageId still works")
-    val delete = content.copy(
-        clientMessageId = "6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67",
-        kind = ContentKind.DELETE,
-        body = null,
-        deletesMessageId = "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
-    )
-    check(decodeContent(encodeContent(delete)) == delete, "a delete round trips")
-    try {
-        encodeContent(content.copy(deletesMessageId = delete.deletesMessageId))
-        check(false, "a text naming deletesMessageId must throw")
-    } catch (e: ChatCryptoException.InvalidContent) {
-        check(true, "a text naming deletesMessageId is refused")
-    }
+    val typing = content.copy(envelopeId = null, body = ContentBody.Typing(TypingState.START))
+    check(decodeContent(encodeContent(typing)) == typing, "a typing signal round trips")
+    check(encodeContent(typing).encodeToByteArray().size == 256, "a typing signal is padded to 256 bytes")
     check(
-        encodeContent(content).encodeToByteArray().size == 256 && encodeContent(removal).encodeToByteArray().size == 256,
-        "contents are padded to 256 bytes",
+        encodeContent(content.copy(body = bodies.last())).encodeToByteArray().size == 512,
+        "a receipt is padded to 512 bytes",
+    )
+    try {
+        encodeContent(typing.copy(envelopeId = content.envelopeId))
+        check(false, "a typing signal with an envelope id must throw")
+    } catch (e: ChatCryptoException.InvalidContent) {
+        check(true, "a typing signal with an envelope id is refused")
+    }
+    try {
+        encodeContent(content.copy(version = 1u))
+        check(false, "version 1 must not be written")
+    } catch (e: ChatCryptoException.InvalidContent) {
+        check(true, "version 1 is never written")
+    }
+    try {
+        decodeContent("""{"v":2,"kind":"poll","conversation_id":"$conversation","envelope_id":"$target"}""")
+        check(false, "an unknown kind must throw")
+    } catch (e: ChatCryptoException.UnsupportedContent) {
+        check(true, "an unknown kind is UnsupportedContent")
+    }
+    val legacy = decodeContent(
+        """{"v":1,"conversation_id":"${conversation.uppercase()}","client_message_id":"c","kind":"payment","comment":"Merci"}"""
+    )
+    check(
+        legacy.version.toInt() == 1 && legacy.envelopeId == null && legacy.conversationId == conversation &&
+            legacy.body == ContentBody.Payment("c", "Merci"),
+        "a version 1 card is read, its comment as body, ids in lower case",
     )
     check(received.newSession && received.accountChanged, "a new inbound session was opened")
 

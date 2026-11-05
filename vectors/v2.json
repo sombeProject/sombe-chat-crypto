@@ -1,0 +1,158 @@
+{
+  "description": "SOMBE chat content test vectors, content version 2 (sombe-chat-crypto 0.5.0). Test ids only.",
+  "v2": {
+    "text": {
+      "bytes": 256,
+      "plaintext": "{\"v\":2,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"pad\":\"                        \"}"
+    },
+    "text_reply": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"8d5a2f4c-1e9b-4a6c-8f0d-3b4c5d6e7f89\",\"client_message_id\":\"9e6b3a5d-2f0c-4b7d-9a1e-4c5d6e7f8a90\",\"body\":\"Oui, à l’instant\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Salut ! Tu es rentré ?\",\"pad\":\"                                                                                                                                                                                     \"}"
+    },
+    "edit": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"edit\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"af7c4b6e-3a1d-4c8e-8b2f-5d6e7f8a9b01\",\"client_message_id\":\"2d9a6f8c-5e3b-4a0c-9f4d-7b8c9e0f1a23\",\"edits_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"body\":\"Salut ! Tu es rentrée ?\",\"pad\":\"                                                                                                                                                                                                                             \"}"
+    },
+    "reaction": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"reaction\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"b08d5c7f-4b2e-4d9f-9c3a-6e7f8a9b0c12\",\"client_message_id\":\"4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45\",\"reacts_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"body\":\"❤️\",\"pad\":\"                                                                                                                                                                                                                                       \"}"
+    },
+    "reaction_remove": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"reaction_remove\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"c19e6d8a-5c3f-4e0a-8d4b-7f8a9b0c1d23\",\"client_message_id\":\"5a2d9c1f-8b6e-4d3f-8c7a-0e1f2a3b4d56\",\"reacts_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"pad\":\"                                                                                                                                                                                                                                                \"}"
+    },
+    "delete": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"delete\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"d2af7e9b-6d4a-4f1b-9e5c-8a9b0c1d2e34\",\"client_message_id\":\"6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67\",\"deletes_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"pad\":\"                                                                                                                                                                                                                                                           \"}"
+    },
+    "payment": {
+      "bytes": 256,
+      "plaintext": "{\"v\":2,\"kind\":\"payment\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"e3b08fac-7e5b-4a2c-8f6d-9b0c1d2e3f45\",\"client_message_id\":\"f4c19abd-8f6c-4b3d-9a7e-0c1d2e3f4a56\",\"body\":\"Pour le marché\",\"pad\":\"                             \"}"
+    },
+    "receipt_delivered": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"receipt\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"05d2abce-9a7d-4c4e-8b8f-1d2e3f4a5b67\",\"status\":\"delivered\",\"up_to_envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"up_to_created_at\":\"2026-11-04T12:34:56.789Z\",\"pad\":\"                                                                                                                                                                                                                                                   \"}"
+    },
+    "receipt_read": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"receipt\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"16e3bcdf-ab8e-4d5f-9c9a-2e3f4a5b6c78\",\"status\":\"read\",\"up_to_envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"up_to_created_at\":\"2026-11-04T12:34:56Z\",\"pad\":\"                                                                                                                                                                                                                                                            \"}"
+    },
+    "typing_start": {
+      "bytes": 256,
+      "plaintext": "{\"v\":2,\"kind\":\"typing\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"state\":\"start\",\"pad\":\"                                                                                                                                                       \"}"
+    },
+    "typing_stop": {
+      "bytes": 256,
+      "plaintext": "{\"v\":2,\"kind\":\"typing\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"state\":\"stop\",\"pad\":\"                                                                                                                                                        \"}"
+    }
+  },
+  "v1_read": {
+    "text": {
+      "plaintext": "{\"v\":1,\"conversation_id\":\"0B7E4D6A-3C1F-4E8A-9D2B-5F6A7C8E9D01\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"kind\":\"text\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"  \"}",
+      "read": {
+        "version": 1,
+        "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
+        "envelope_id": null,
+        "body": {
+          "variant": "Text",
+          "client_message_id": "1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12",
+          "body": "Salut ! Tu es rentré ?",
+          "reply_to_message_id": null,
+          "reply_excerpt": "Dimanche à midi"
+        }
+      }
+    },
+    "payment": {
+      "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"f4c19abd-8f6c-4b3d-9a7e-0c1d2e3f4a56\",\"kind\":\"payment\",\"comment\":\"Pour le marché\"}",
+      "read": {
+        "version": 1,
+        "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
+        "envelope_id": null,
+        "body": {
+          "variant": "Payment",
+          "client_message_id": "f4c19abd-8f6c-4b3d-9a7e-0c1d2e3f4a56",
+          "body": "Pour le marché"
+        }
+      }
+    },
+    "payment_without_comment": {
+      "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"f4c19abd-8f6c-4b3d-9a7e-0c1d2e3f4a56\",\"kind\":\"payment\"}",
+      "read": {
+        "version": 1,
+        "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
+        "envelope_id": null,
+        "body": {
+          "variant": "Payment",
+          "client_message_id": "f4c19abd-8f6c-4b3d-9a7e-0c1d2e3f4a56",
+          "body": ""
+        }
+      }
+    },
+    "edit": {
+      "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"2d9a6f8c-5e3b-4a0c-9f4d-7b8c9e0f1a23\",\"kind\":\"edit\",\"body\":\"Salut ! Tu es rentrée ?\",\"edits_message_id\":\"3E0B7A9D-6F4C-4B1D-8A5E-8C9D0E1F2B34\"}",
+      "read": {
+        "version": 1,
+        "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
+        "envelope_id": null,
+        "body": {
+          "variant": "Edit",
+          "client_message_id": "2d9a6f8c-5e3b-4a0c-9f4d-7b8c9e0f1a23",
+          "edits_message_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
+          "body": "Salut ! Tu es rentrée ?"
+        }
+      }
+    },
+    "reaction": {
+      "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45\",\"kind\":\"reaction\",\"body\":\"❤️\",\"reacts_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"later_field\":1}",
+      "read": {
+        "version": 1,
+        "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
+        "envelope_id": null,
+        "body": {
+          "variant": "Reaction",
+          "client_message_id": "4f1c8b0e-7a5d-4c2e-9b6f-9d0e1f2a3c45",
+          "reacts_to_message_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
+          "body": "❤️"
+        }
+      }
+    },
+    "reaction_remove": {
+      "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"5a2d9c1f-8b6e-4d3f-8c7a-0e1f2a3b4d56\",\"kind\":\"reaction_remove\",\"reacts_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\"}",
+      "read": {
+        "version": 1,
+        "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
+        "envelope_id": null,
+        "body": {
+          "variant": "ReactionRemove",
+          "client_message_id": "5a2d9c1f-8b6e-4d3f-8c7a-0e1f2a3b4d56",
+          "reacts_to_message_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34"
+        }
+      }
+    },
+    "delete": {
+      "plaintext": "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67\",\"kind\":\"delete\",\"deletes_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\"}",
+      "read": {
+        "version": 1,
+        "conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01",
+        "envelope_id": null,
+        "body": {
+          "variant": "Delete",
+          "client_message_id": "6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67",
+          "deletes_message_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34"
+        }
+      }
+    }
+  },
+  "unsupported_content": [
+    "{\"v\":3,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\"}",
+    "{\"v\":2,\"kind\":\"poll\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\"}",
+    "{\"v\":1,\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"kind\":\"poll\"}"
+  ],
+  "invalid_content": [
+    "{\"v\":2,\"kind\":\"typing\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"state\":\"start\"}",
+    "{\"v\":2,\"kind\":\"receipt\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"status\":\"read\",\"up_to_envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"up_to_created_at\":\"2026-11-04T12:34:56Z\"}",
+    "{\"v\":2,\"kind\":\"delete\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"d2af7e9b-6d4a-4f1b-9e5c-8a9b0c1d2e34\",\"client_message_id\":\"6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67\",\"deletes_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"later_field\":1}",
+    "{\"v\":2,\"kind\":\"receipt\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"05d2abce-9a7d-4c4e-8b8f-1d2e3f4a5b67\",\"status\":\"read\",\"up_to_envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"up_to_created_at\":\"2026-11-04T12:34:56\"}",
+    "{\"v\":2,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"not-a-uuid\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"x\"}"
+  ]
+}

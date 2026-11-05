@@ -15,7 +15,7 @@ mod content;
 mod safety;
 mod statement;
 
-pub use content::{ContentKind, MessageContent};
+pub use content::{Content, ContentBody, ReceiptStatus, TypingState};
 
 uniffi::setup_scaffolding!();
 
@@ -44,8 +44,13 @@ pub enum ChatCryptoError {
     Decryption { reason: String },
     #[error("could not encrypt: {reason}")]
     Encryption { reason: String },
+    /// The content is malformed: keep the message as unreadable.
     #[error("invalid content: {reason}")]
     InvalidContent { reason: String },
+    /// A content kind or version this module does not know yet (since 0.5.0): the message
+    /// is authentic but cannot be shown. Never read as another kind.
+    #[error("unsupported content: {reason}")]
+    UnsupportedContent { reason: String },
     /// The identity names another wallet than the one pinned for this contact.
     #[error("the contact's wallet address changed")]
     WalletChanged,
@@ -353,13 +358,17 @@ pub fn one_time_key_signed_text(key: SignedOneTimeKey) -> String {
     statement::one_time_key_text(&key.key_id, &key.public_key, key.is_fallback)
 }
 
+/// The padded JSON of a version 2 content. Refuses any other version, and any content
+/// whose shape does not match its kind (`InvalidContent`).
 #[uniffi::export]
-pub fn encode_content(content: MessageContent) -> Result<String> {
+pub fn encode_content(content: Content) -> Result<String> {
     content::encode(content)
 }
 
+/// Reads a version 1 or version 2 content, with every UUID in lower case. A kind or a
+/// version it does not know is `UnsupportedContent`; a malformed content is `InvalidContent`.
 #[uniffi::export]
-pub fn decode_content(json: String) -> Result<MessageContent> {
+pub fn decode_content(json: String) -> Result<Content> {
     content::decode(&json)
 }
 
