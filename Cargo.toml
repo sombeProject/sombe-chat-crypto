@@ -1,6 +1,6 @@
 [package]
 name = "sombe-chat-crypto"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 rust-version = "1.89"
 license = "Apache-2.0"
@@ -33,6 +33,9 @@ serde = { version = "1", features = ["derive"] }
 # preserve_order: the content JSON keeps its fields in the order PROTOCOL.md gives.
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.11"
+# The account key (0.7.0): HKDF from the wallet key, sealed with XChaCha20-Poly1305.
+hkdf = "=0.13.0"
+chacha20poly1305 = { version = "=0.11.0", default-features = false, features = ["alloc", "getrandom", "zeroize"] }
 thiserror = "2"
 zeroize = "1"
 

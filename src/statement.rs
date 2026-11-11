@@ -1,83 +1,72 @@
-//! The identity statement a wallet signs, and the text a one time key signature covers.
-//! Both formats are described in PROTOCOL.md; any change here is a protocol change.
+//! The identity statement (version 3 since 0.7.0), signed by the identity and by the
+//! account key, the text a one time key signature covers, and how a contact's identity
+//! is judged against the one pinned for them. The formats are described in PROTOCOL.md;
+//! any change here is a protocol change.
 
 use vodozemac::{Curve25519PublicKey, Ed25519PublicKey, Ed25519Signature};
 
-use crate::{ChatCryptoError, IdentityKeys, IdentityUpdate, SignedOneTimeKey, VerifiedIdentity, PROTOCOL};
+use crate::account::{self, AccountRotationContent, WalletCard, LAST_GENERATION};
+use crate::{
+    ChatCryptoError, IdentityKeys, IdentityUpdate, PinnedIdentity, PinnedOlm, SignedOneTimeKey,
+    StatementFields, VerifiedIdentity, PROTOCOL,
+};
 
-const STATEMENT_HEADER: &str = "SOMBE chat identity v2";
-const V1_STATEMENT_HEADER: &str = "SOMBE chat identity v1";
+const STATEMENT_HEADER: &str = "SOMBE chat identity v3";
 const ONE_TIME_KEY_HEADER: &str = "SOMBE one-time key v1";
 
 /// The first six lines of a statement: what the identity's own ed25519 key signs.
 pub(crate) fn body(
-    wallet_address: &str,
+    account_public_key: &str,
     keys: &IdentityKeys,
     created_at: &str,
 ) -> Result<String, ChatCryptoError> {
-    wallet_public_key(wallet_address)?;
+    account::public_key(account_public_key, "account key")?;
     check_timestamp(created_at)?;
     Ok(format!(
-        "{STATEMENT_HEADER}\nprotocol:{PROTOCOL}\nwallet:{wallet_address}\ncurve25519:{}\ned25519:{}\ncreated:{created_at}",
+        "{STATEMENT_HEADER}\nprotocol:{PROTOCOL}\naccount:{account_public_key}\ncurve25519:{}\ned25519:{}\ncreated:{created_at}",
         keys.curve25519_key, keys.ed25519_key
     ))
 }
 
-/// The whole statement the wallet signs: the body, then the identity's signature of it.
+/// The whole statement the account key signs: the body, then the identity's signature of it.
 pub(crate) fn build(body: &str, identity_signature: &str) -> String {
     format!("{body}\nidentity_signature:{identity_signature}")
 }
 
-pub(crate) fn verify(
-    statement: &str,
-    wallet_address: &str,
-    wallet_signature: &str,
-) -> Result<VerifiedIdentity, ChatCryptoError> {
-    let wallet_key = wallet_public_key(wallet_address)?;
-    let signature_bytes =
-        bs58::decode(wallet_signature).into_vec().map_err(|_| ChatCryptoError::InvalidSignature)?;
-    let signature =
-        Ed25519Signature::from_slice(&signature_bytes).map_err(|_| ChatCryptoError::InvalidSignature)?;
-    wallet_key.verify(statement.as_bytes(), &signature).map_err(|_| ChatCryptoError::InvalidSignature)?;
-
-    // The signature is good; now the text must be exactly the format we sign.
-    let lines: Vec<&str> = statement.split('\n').collect();
-    if lines.first() == Some(&V1_STATEMENT_HEADER) {
-        return Err(invalid_statement("version 1 statements are no longer accepted"));
-    }
-    let [header, protocol, wallet, curve, ed, created, identity_signature] = lines.as_slice() else {
-        return Err(invalid_statement("expected 7 lines"));
+/// Rebuilds the seven lines from the server's columns, then checks the identity's
+/// signature of the first six and the account key's signature of all seven.
+pub(crate) fn verify(fields: &StatementFields) -> Result<VerifiedIdentity, ChatCryptoError> {
+    let account_key = account::public_key(&fields.account_public_key, "account key")?;
+    Curve25519PublicKey::from_base64(&fields.curve25519_key).map_err(|e| invalid_key(e.to_string()))?;
+    let identity_key =
+        Ed25519PublicKey::from_base64(&fields.ed25519_key).map_err(|e| invalid_key(e.to_string()))?;
+    let keys = IdentityKeys {
+        curve25519_key: fields.curve25519_key.clone(),
+        ed25519_key: fields.ed25519_key.clone(),
     };
-    if *header != STATEMENT_HEADER {
-        return Err(invalid_statement("unknown header"));
-    }
-    let protocol = field(protocol, "protocol")?;
-    if protocol != PROTOCOL {
-        return Err(ChatCryptoError::UnsupportedProtocol { protocol: protocol.to_owned() });
-    }
-    if field(wallet, "wallet")? != wallet_address {
-        return Err(invalid_statement("wallet address does not match"));
-    }
-    let curve25519_key = field(curve, "curve25519")?;
-    Curve25519PublicKey::from_base64(curve25519_key).map_err(|e| invalid_key(e.to_string()))?;
-    let ed25519_key = field(ed, "ed25519")?;
-    let identity_key = Ed25519PublicKey::from_base64(ed25519_key).map_err(|e| invalid_key(e.to_string()))?;
-    let created_at = field(created, "created")?;
-    check_timestamp(created_at)?;
+    let body = body(&fields.account_public_key, &keys, &fields.created_at)?;
 
-    // The identity must vouch for this wallet too, or a wallet could claim someone else's keys.
-    let identity_signature = Ed25519Signature::from_base64(field(identity_signature, "identity_signature")?)
+    let identity_signature = Ed25519Signature::from_base64(&fields.identity_signature)
         .map_err(|_| ChatCryptoError::InvalidSignature)?;
-    let (body, _) = statement.rsplit_once('\n').ok_or_else(|| invalid_statement("expected 7 lines"))?;
     identity_key
         .verify(body.as_bytes(), &identity_signature)
         .map_err(|_| ChatCryptoError::InvalidSignature)?;
 
+    let statement = build(&body, &fields.identity_signature);
+    let account_signature = bs58::decode(&fields.account_signature)
+        .into_vec()
+        .ok()
+        .and_then(|bytes| Ed25519Signature::from_slice(&bytes).ok())
+        .ok_or(ChatCryptoError::InvalidSignature)?;
+    account_key
+        .verify(statement.as_bytes(), &account_signature)
+        .map_err(|_| ChatCryptoError::InvalidSignature)?;
+
     Ok(VerifiedIdentity {
-        wallet_address: wallet_address.to_owned(),
-        curve25519_key: curve25519_key.to_owned(),
-        ed25519_key: ed25519_key.to_owned(),
-        created_at: created_at.to_owned(),
+        account_public_key: fields.account_public_key.clone(),
+        curve25519_key: fields.curve25519_key.clone(),
+        ed25519_key: fields.ed25519_key.clone(),
+        created_at: fields.created_at.clone(),
     })
 }
 
@@ -99,26 +88,72 @@ pub(crate) fn verify_one_time_key(
     Curve25519PublicKey::from_base64(&key.public_key).map_err(|e| invalid_key(e.to_string()))
 }
 
-/// Compares a contact's identity with the one the app pinned for them. A new identity is
-/// accepted only when it is strictly newer, so a server cannot bring back an old one.
+/// Compares a contact's identity with the one pinned for them. Under the same account key,
+/// a new identity is accepted only when it is strictly newer. Under another account key,
+/// only with a rotation proof from the pinned key, signed by both keys and carried with a
+/// wallet card from the pinned wallet.
 pub(crate) fn check_update(
-    pinned: Option<&VerifiedIdentity>,
+    pinned: Option<&PinnedIdentity>,
     candidate: &VerifiedIdentity,
+    rotation: Option<&AccountRotationContent>,
 ) -> Result<IdentityUpdate, ChatCryptoError> {
     let Some(pinned) = pinned else {
         return Ok(IdentityUpdate::New);
     };
-    if candidate.wallet_address != pinned.wallet_address {
-        return Err(ChatCryptoError::WalletChanged);
+    let same_olm = |olm: &PinnedOlm| {
+        olm.curve25519_key == candidate.curve25519_key && olm.ed25519_key == candidate.ed25519_key
+    };
+    if candidate.account_public_key == pinned.account_public_key {
+        let Some(olm) = &pinned.olm else {
+            return Ok(IdentityUpdate::New);
+        };
+        if same_olm(olm) {
+            return Ok(IdentityUpdate::Unchanged);
+        }
+        return if instant(&candidate.created_at)? > instant(&olm.created_at)? {
+            Ok(IdentityUpdate::Changed)
+        } else {
+            Err(ChatCryptoError::StaleIdentity)
+        };
     }
-    if candidate.curve25519_key == pinned.curve25519_key && candidate.ed25519_key == pinned.ed25519_key {
-        return Ok(IdentityUpdate::Unchanged);
+    if !rotation.is_some_and(|r| rotation_holds(pinned, candidate, r)) {
+        return Err(ChatCryptoError::AccountChanged);
     }
-    if instant(&candidate.created_at)? > instant(&pinned.created_at)? {
-        Ok(IdentityUpdate::Changed)
-    } else {
-        Err(ChatCryptoError::StaleIdentity)
-    }
+    Ok(match &pinned.olm {
+        Some(olm) if same_olm(olm) => IdentityUpdate::AccountRotated,
+        _ => IdentityUpdate::AccountRotatedAndChanged,
+    })
+}
+
+/// Every condition of a rotation, all required. Any malformed value is a failed condition.
+fn rotation_holds(
+    pinned: &PinnedIdentity,
+    candidate: &VerifiedIdentity,
+    rotation: &AccountRotationContent,
+) -> bool {
+    let Some(wallet_address) = &pinned.wallet_address else {
+        return false;
+    };
+    let card = WalletCard {
+        wallet_address: rotation.wallet_address.clone(),
+        account_public_key: rotation.new_account_public_key.clone(),
+        wallet_signature: rotation.wallet_signature.clone(),
+    };
+    let newer = match &pinned.olm {
+        None => true,
+        Some(olm) => {
+            matches!((instant(&candidate.created_at), instant(&olm.created_at)), (Ok(c), Ok(p)) if c > p)
+        }
+    };
+    (2..=LAST_GENERATION).contains(&rotation.generation)
+        && rotation.old_account_public_key == pinned.account_public_key
+        && rotation.new_account_public_key == candidate.account_public_key
+        && rotation.old_account_public_key != rotation.new_account_public_key
+        && account::rotation_signatures_hold(rotation)
+        && pinned.account_generation.is_none_or(|known| rotation.generation > known)
+        && rotation.wallet_address == *wallet_address
+        && account::verify_wallet_card(&card).is_ok()
+        && newer
 }
 
 /// A checked timestamp as (seconds part, milliseconds), which compare in time order.
@@ -127,25 +162,8 @@ fn instant(value: &str) -> Result<(&str, &str), ChatCryptoError> {
     Ok((&value[..19], value.get(20..23).unwrap_or("000")))
 }
 
-/// A Solana address is the base58 form of an ed25519 public key.
-fn wallet_public_key(wallet_address: &str) -> Result<Ed25519PublicKey, ChatCryptoError> {
-    let bytes = bs58::decode(wallet_address)
-        .into_vec()
-        .map_err(|_| invalid_key("wallet address is not base58".to_owned()))?;
-    let bytes: [u8; 32] =
-        bytes.try_into().map_err(|_| invalid_key("wallet address is not 32 bytes".to_owned()))?;
-    Ed25519PublicKey::from_slice(&bytes).map_err(|e| invalid_key(e.to_string()))
-}
-
-fn field<'a>(line: &'a str, name: &str) -> Result<&'a str, ChatCryptoError> {
-    line.strip_prefix(name)
-        .and_then(|rest| rest.strip_prefix(':'))
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| invalid_statement(&format!("missing {name}")))
-}
-
 /// UTC, second precision or milliseconds: `2026-10-14T18:30:01Z` or `2026-10-14T18:30:01.183Z`.
-fn check_timestamp(value: &str) -> Result<(), ChatCryptoError> {
+pub(crate) fn check_timestamp(value: &str) -> Result<(), ChatCryptoError> {
     let bytes = value.as_bytes();
     let shape_ok = match bytes.len() {
         20 => true,
@@ -168,7 +186,7 @@ fn check_timestamp(value: &str) -> Result<(), ChatCryptoError> {
     }
 }
 
-fn invalid_statement(reason: &str) -> ChatCryptoError {
+pub(crate) fn invalid_statement(reason: &str) -> ChatCryptoError {
     ChatCryptoError::InvalidStatement { reason: reason.to_owned() }
 }
 

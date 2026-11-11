@@ -12,9 +12,13 @@
 //! signed by that wallet) and the payments themselves: requests, payments sent, refusals
 //! and cancellations. The server no longer sees any payment. The old `payment` kind (the
 //! comment of a card the server kept) is still read.
+//!
+//! Since 0.7.0 version 2 also carries `account_rotation`: the proof that a contact handed
+//! their account key over to a new one, with the new key's wallet card.
 
 use serde_json::{Map, Value};
 
+use crate::account::{AccountRotationContent, LAST_GENERATION};
 use crate::ChatCryptoError;
 
 /// The only version `encode_content` writes.
@@ -108,7 +112,22 @@ pub enum ContentBody {
     PaymentRequestDeclined { request_id: String },
     /// The requester withdraws a request (since 0.6.0).
     PaymentRequestCancelled { request_id: String },
+    /// The sender changed their account key (since 0.7.0): the rotation proof and the new
+    /// key's wallet card. Not urgent, not shown, never notified. The module checks the form
+    /// of every field here; `check_identity_update` checks the signatures.
+    AccountRotation { rotation: AccountRotationContent },
 }
+
+/// The fields of `account_rotation`, in the order PROTOCOL.md gives.
+const ROTATION_FIELDS: [&str; 7] = [
+    "old_account_public_key",
+    "new_account_public_key",
+    "generation",
+    "old_signature",
+    "new_signature",
+    "wallet_address",
+    "wallet_signature",
+];
 
 #[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReceiptStatus {
@@ -223,6 +242,16 @@ pub(crate) fn encode(content: Content) -> Result<String, ChatCryptoError> {
         | ContentBody::PaymentRequestCancelled { request_id } => {
             put_uuid(&mut map, "request_id", request_id)?;
         }
+        ContentBody::AccountRotation { rotation } => {
+            let rotation = checked_rotation(rotation.clone())?;
+            map.insert("old_account_public_key".into(), Value::from(rotation.old_account_public_key));
+            map.insert("new_account_public_key".into(), Value::from(rotation.new_account_public_key));
+            map.insert("generation".into(), Value::from(rotation.generation));
+            map.insert("old_signature".into(), Value::from(rotation.old_signature));
+            map.insert("new_signature".into(), Value::from(rotation.new_signature));
+            map.insert("wallet_address".into(), Value::from(rotation.wallet_address));
+            map.insert("wallet_signature".into(), Value::from(rotation.wallet_signature));
+        }
     }
     pad(map)
 }
@@ -263,6 +292,7 @@ fn decode_v2(mut map: Map<String, Value>) -> Result<Content, ChatCryptoError> {
         "payment_request" => &["request_id", "amount_base_units", "mint", "decimals", "note"],
         "payment_sent" => &["request_id", "signature", "amount_base_units", "mint", "decimals", "note"],
         "payment_request_declined" | "payment_request_cancelled" => &["request_id"],
+        "account_rotation" => &ROTATION_FIELDS,
         _ => return Err(unsupported("unknown content kind")),
     };
     // Exactly the fields of the kind: a later addition is a version 3.
@@ -365,6 +395,27 @@ fn decode_v2(mut map: Map<String, Value>) -> Result<Content, ChatCryptoError> {
         }
         "payment_request_declined" => ContentBody::PaymentRequestDeclined { request_id: id("request_id")? },
         "payment_request_cancelled" => ContentBody::PaymentRequestCancelled { request_id: id("request_id")? },
+        "account_rotation" => {
+            // Every field is required, and the generation is a JSON integer.
+            let generation = match map.get("generation") {
+                Some(Value::Number(n)) => n
+                    .as_u64()
+                    .and_then(|g| u16::try_from(g).ok())
+                    .ok_or_else(|| invalid("generation is 2 to 32767"))?,
+                _ => return Err(invalid("generation is 2 to 32767")),
+            };
+            ContentBody::AccountRotation {
+                rotation: checked_rotation(AccountRotationContent {
+                    old_account_public_key: required(&map, "old_account_public_key")?,
+                    new_account_public_key: required(&map, "new_account_public_key")?,
+                    generation,
+                    old_signature: required(&map, "old_signature")?,
+                    new_signature: required(&map, "new_signature")?,
+                    wallet_address: required(&map, "wallet_address")?,
+                    wallet_signature: required(&map, "wallet_signature")?,
+                })?,
+            }
+        }
         _ => unreachable!("kinds were matched above"),
     };
     Ok(Content { version: 2, conversation_id, envelope_id, body })
@@ -487,7 +538,35 @@ fn kind_name(body: &ContentBody) -> &'static str {
         ContentBody::PaymentSent { .. } => "payment_sent",
         ContentBody::PaymentRequestDeclined { .. } => "payment_request_declined",
         ContentBody::PaymentRequestCancelled { .. } => "payment_request_cancelled",
+        ContentBody::AccountRotation { .. } => "account_rotation",
     }
+}
+
+/// The form of an `account_rotation`, the same on write and on read.
+fn checked_rotation(rotation: AccountRotationContent) -> Result<AccountRotationContent, ChatCryptoError> {
+    canonical(&rotation.old_account_public_key, KEY_BYTES, "old_account_public_key")?;
+    canonical(&rotation.new_account_public_key, KEY_BYTES, "new_account_public_key")?;
+    canonical(&rotation.wallet_address, KEY_BYTES, "wallet_address")?;
+    canonical(&rotation.old_signature, SIGNATURE_BYTES, "old_signature")?;
+    canonical(&rotation.new_signature, SIGNATURE_BYTES, "new_signature")?;
+    canonical(&rotation.wallet_signature, SIGNATURE_BYTES, "wallet_signature")?;
+    if !(2..=LAST_GENERATION).contains(&rotation.generation) {
+        return Err(invalid("generation is 2 to 32767"));
+    }
+    if rotation.old_account_public_key == rotation.new_account_public_key {
+        return Err(invalid("the old and new account keys are the same"));
+    }
+    Ok(rotation)
+}
+
+/// `base58`, and the text must be the one spelling of its bytes.
+fn canonical(text: &str, bytes: usize, name: &str) -> Result<(), ChatCryptoError> {
+    base58(text, bytes, name)?;
+    let decoded = bs58::decode(text).into_vec().map_err(|_| invalid(&format!("{name} is not base58")))?;
+    if bs58::encode(decoded).into_string() != text {
+        return Err(invalid(&format!("{name} is not canonical base58")));
+    }
+    Ok(())
 }
 
 /// Adds, last, the `pad` field of spaces that brings the JSON to its size bucket.

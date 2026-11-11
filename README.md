@@ -5,16 +5,18 @@ check it. It is a thin layer over [vodozemac](https://github.com/matrix-org/vodo
 (Olm), exposed to Android through [UniFFI](https://github.com/mozilla/uniffi-rs). It holds
 no business logic: no networking, no storage, no payments.
 
-- [PROTOCOL.md](PROTOCOL.md): identity signed by the wallet, one time keys, envelope,
-  content format, session rules, identity pinning, safety number.
-- [vectors/v1.json](vectors/v1.json): test vectors for every format (written by 0.4.0).
+- [PROTOCOL.md](PROTOCOL.md): the account key drawn from the wallet, identity signed by
+  that key, one time keys, envelope, content format, session rules, identity pinning and
+  rotation, safety number.
+- [vectors/v1.json](vectors/v1.json): test vectors written by 0.4.0 (frozen).
 - [vectors/v2.json](vectors/v2.json): content version 2, one vector per kind (since 0.5.0; wallet card and payments since 0.6.0).
+- [vectors/v3.json](vectors/v3.json): the account key, the texts it signs, its rotation and the safety number v2 (since 0.7.0).
 
 ## Build and test
 
 ```bash
 cargo test                      # Rust tests and test vectors
-cargo run --bin make-vectors    # regenerates vectors/v2.json (deterministic); v1.json is frozen
+cargo run --bin make-vectors    # regenerates vectors/v2.json and v3.json (deterministic); v1.json is frozen
 ```
 
 vodozemac is a crates.io dependency pinned with `=`, never copied into this repository.
@@ -40,14 +42,24 @@ Using the AAR also needs JNA: `implementation 'net.java.dev.jna:jna:5.14.0@aar'`
 ## Kotlin API
 
 ```kotlin
+// The account key (since 0.7.0): Kotlin sees only its public key and what it signed.
+val derived = deriveAccountKey(walletSeed, 1u)    // the key and its wallet card; zero walletSeed after
+val sealed = derived.key.seal(sealingKey)         // keep it; ChatAccountKey.unseal(sealed, sealingKey)
+val signature = derived.key.signSignIn(message, devicePublicKeyDer)  // RefusedToSign on any other text
+val moved = derived.key.signMove(derived.card, devicePublicKeyDer, identityId)
+val rotation = derived.key.rotate(walletSeed)     // new key, its card and the proof; WrongGeneration
+val proof = proveRotation(walletSeed, announced, current)  // from the key a contact pinned
+
 val account = ChatCrypto.createAccount()          // or ChatCrypto.restoreAccount(pickle, key)
-val statement = account.identityStatement(walletAddress, createdAt)  // signed by the wallet
+val signed = derived.key.signIdentityStatement(account, createdAt)  // statement v3
 val keys = account.generateOneTimeKeys(50u)       // publish, then account.markKeysPublished()
 
-val contact = verifyIdentity(statement, walletAddress, walletSignature)  // a contact's identity
-checkIdentityUpdate(pinned, contact)              // New, Unchanged or Changed; an older one throws
+val contact = verifyIdentity(statementFields)     // the server's columns; the module rebuilds the text
+checkIdentityUpdate(pinned, contact, rotation)    // New, Unchanged, Changed, AccountRotated(AndChanged);
+                                                  // StaleIdentity, AccountChanged throw
+verifyWalletCard(card)                            // InvalidKey or InvalidSignature
 val code = safetyNumber(me, contact)              // 60 digits and the QR text to compare
-compareScannedSafetyCode(me, contact, scannedText) // Match, Mismatch or NotASafetyCode
+compareScannedSafetyCode(me, contact, scannedText) // Match, Mismatch, OutdatedCode or NotASafetyCode
 val sent = account.encryptFor(remote, session, claimedKey, plaintext, pickleKey)
 val read = account.decryptFrom(remote, sessions, envelope, pickleKey)
 

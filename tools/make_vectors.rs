@@ -1,3 +1,8 @@
+//! Writes vectors/v3.json (since 0.7.0): the account key, the four texts it signs, the
+//! sealed key, the wallet card and its fingerprint, the rotation proof, the
+//! `account_rotation` content and the safety number v2. The seed and the sealed text are
+//! computed here a second time, apart from the module, then compared with it.
+//!
 //! Writes vectors/v2.json (since 0.5.0; wallet card and payment kinds since 0.6.0): the
 //! padded version 2 content of every kind, how
 //! each version 1 kind is read, and contents that must be refused. Contents carry no
@@ -6,8 +11,16 @@
 //! was written by 0.4.0 and stays as it is: version 1 content is no longer written, so it
 //! cannot be generated again. Never use these ids for anything real.
 
+use chacha20poly1305::aead::{Aead, KeyInit, Payload};
+use chacha20poly1305::{XChaCha20Poly1305, XNonce};
+use hkdf::Hkdf;
 use serde_json::{json, Value};
-use sombe_chat_crypto::{decode_content, encode_content, Content, ContentBody, ReceiptStatus, TypingState};
+use sha2::{Digest, Sha256};
+use sombe_chat_crypto::{
+    decode_content, derive_account_key, encode_content, prove_rotation, safety_number, verify_identity,
+    verify_wallet_card, AccountRotationContent, ChatAccountKey, ChatCrypto, Content, ContentBody,
+    ReceiptStatus, StatementFields, TypingState, VerifiedIdentity,
+};
 use vodozemac::Ed25519SecretKey;
 
 const CONVERSATION: &str = "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01";
@@ -306,6 +319,257 @@ fn main() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vectors/v2.json");
     std::fs::write(&path, serde_json::to_string_pretty(&vectors).unwrap() + "\n").unwrap();
     println!("wrote {}", path.display());
+
+    write_v3();
+}
+
+/// The wallet seed of the test phrase `abandon` (11 times) `about`, at `m/44'/501'/0'/0'`.
+const HOUSE_WALLET_SEED_HEX: &str = "37df573b3ac4ad5b522e064e25b63ea16bcbe79d449e81a0268d1047948bb445";
+/// A P-256 public key (SPKI, DER) drawn once for these vectors.
+const DEVICE_DER_HEX: &str = "3059301306072a8648ce3d020106082a8648ce3d0301070342000485c79d8ac711e20bc8bee61ca8785f4ae986b3d06f18e045790e948299aff5d08f2b2c7b970868624d78722a9805f53fde02ed3b1f2a36887acb7c1b241eb50c";
+const SIGN_IN_NONCE: &str = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
+const SIGN_IN_ISSUED: &str = "2026-11-11T09:30:00.000Z";
+const IDENTITY_ID: &str = "5d0c7a3e-2b4f-4e8a-9c1d-7e6f5a4b3c21";
+const STATEMENT_CREATED: &str = "2026-11-11T09:00:00.000Z";
+const REMOTE_CREATED: &str = "2026-11-11T09:05:00.000Z";
+const ROTATION_ENVELOPE: &str = "c3d4e5f6-0718-4a29-8b3c-4d5e6f708192";
+const SEALING_KEY: [u8; 32] = [0x5a; 32];
+const SEAL_NONCE: [u8; 24] =
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+
+fn write_v3() {
+    let v1: Value = serde_json::from_str(include_str!("../vectors/v1.json")).unwrap();
+    let wallet = WALLET_SEED.to_vec();
+    let keys: Vec<_> = [1u16, 2, 3].iter().map(|&g| derive_account_key(wallet.clone(), g).unwrap()).collect();
+    let gen1 = &keys[0];
+
+    // The seed again, straight from HKDF: the module must give its public key.
+    let seed1 = hkdf_seed(&WALLET_SEED, 1);
+    assert_eq!(public_of(&seed1), gen1.key.public_key());
+    let account_keys: Vec<Value> = keys
+        .iter()
+        .map(|k| {
+            json!({
+                "generation": k.key.generation(),
+                "info": format!("sombe:chat_account:{}", k.key.generation()),
+                "seed_hex": hex(&hkdf_seed(&WALLET_SEED, k.key.generation())),
+                "public_key": k.key.public_key(),
+            })
+        })
+        .collect();
+
+    let house_seed: [u8; 32] = unhex(HOUSE_WALLET_SEED_HEX).try_into().unwrap();
+    let house: Vec<Value> = [1u16, 2]
+        .iter()
+        .map(|&g| {
+            let derived = derive_account_key(house_seed.to_vec(), g).unwrap();
+            assert_eq!(public_of(&hkdf_seed(&house_seed, g)), derived.key.public_key());
+            json!({ "generation": g, "seed_hex": hex(&hkdf_seed(&house_seed, g)), "public_key": derived.key.public_key() })
+        })
+        .collect();
+
+    // The sealed key, built by hand with a fixed nonce; the module must open it.
+    let sealed = seal_by_hand(&SEALING_KEY, &SEAL_NONCE, 1, &seed1);
+    let unsealed = ChatAccountKey::unseal(sealed.clone(), SEALING_KEY.to_vec()).unwrap();
+    assert_eq!((unsealed.public_key(), unsealed.generation()), (gen1.key.public_key(), 1));
+
+    let card = &gen1.card;
+    verify_wallet_card(card.clone()).unwrap();
+    let card_text =
+        format!("SOMBE wallet card v1\nwallet:{}\naccount:{}", card.wallet_address, card.account_public_key);
+    let card_fingerprint = hex(&Sha256::digest(card_text.as_bytes()));
+
+    // The identity statement v3 of the pickled identity of vectors/v1.json.
+    let pickle_key = unhex(v1["pickle_key_hex"].as_str().unwrap());
+    let olm =
+        ChatCrypto::restore_account(v1["identity"]["account_pickle"].as_str().unwrap().into(), pickle_key)
+            .unwrap();
+    let olm_keys = olm.identity_keys();
+    let signed = gen1.key.sign_identity_statement(olm, STATEMENT_CREATED.into()).unwrap();
+    let local = verify_identity(StatementFields {
+        account_public_key: gen1.key.public_key(),
+        curve25519_key: olm_keys.curve25519_key.clone(),
+        ed25519_key: olm_keys.ed25519_key.clone(),
+        created_at: STATEMENT_CREATED.into(),
+        identity_signature: signed.identity_signature.clone(),
+        account_signature: signed.account_signature.clone(),
+    })
+    .unwrap();
+    let (body, _) = signed.statement.rsplit_once('\n').unwrap();
+
+    let der = unhex(DEVICE_DER_HEX);
+    let device_fingerprint = hex(&Sha256::digest(&der));
+    let sign_in = format!(
+        "SOMBE ChatPay sign in\naccount:{}\ndevice:{device_fingerprint}\nnonce:{SIGN_IN_NONCE}\nissued:{SIGN_IN_ISSUED}",
+        gen1.key.public_key()
+    );
+    let sign_in_signature = gen1.key.sign_sign_in(sign_in.clone(), der.clone()).unwrap();
+    let moves: Vec<Value> = [Some(IDENTITY_ID), None]
+        .iter()
+        .map(|identity| {
+            let text = format!(
+                "SOMBE account move v1\ncard:{card_fingerprint}\ndevice:{device_fingerprint}\nidentity:{}",
+                identity.unwrap_or("-")
+            );
+            let signature =
+                gen1.key.sign_move(card.clone(), der.clone(), identity.map(str::to_owned)).unwrap();
+            json!({ "identity_id": identity, "text": text, "account_signature": signature })
+        })
+        .collect();
+
+    let rotation = gen1.key.rotate(wallet.clone()).unwrap();
+    assert_eq!(rotation.new_key.public_key(), keys[1].key.public_key());
+    let proven = prove_rotation(wallet, 1, 3).unwrap();
+    let proof_json = |proof: &sombe_chat_crypto::RotationProof, card: &sombe_chat_crypto::WalletCard| {
+        json!({
+            "text": format!(
+                "SOMBE account rotate v1\nold:{}\nnew:{}\ngeneration:{}",
+                proof.old_account_public_key, proof.new_account_public_key, proof.generation
+            ),
+            "old_account_public_key": proof.old_account_public_key,
+            "new_account_public_key": proof.new_account_public_key,
+            "generation": proof.generation,
+            "old_signature": proof.old_signature,
+            "new_signature": proof.new_signature,
+            "card": { "wallet_address": card.wallet_address, "account_public_key": card.account_public_key, "wallet_signature": card.wallet_signature },
+        })
+    };
+
+    let rotation_content = v2(
+        Some(ROTATION_ENVELOPE),
+        ContentBody::AccountRotation {
+            rotation: AccountRotationContent {
+                old_account_public_key: rotation.proof.old_account_public_key.clone(),
+                new_account_public_key: rotation.proof.new_account_public_key.clone(),
+                generation: rotation.proof.generation,
+                old_signature: rotation.proof.old_signature.clone(),
+                new_signature: rotation.proof.new_signature.clone(),
+                wallet_address: rotation.card.wallet_address.clone(),
+                wallet_signature: rotation.card.wallet_signature.clone(),
+            },
+        },
+    );
+    let plaintext = encode_content(rotation_content.clone()).unwrap();
+    assert_eq!(decode_content(plaintext.clone()).unwrap(), rotation_content);
+    let invalid_rotations = invalid_rotations(&plaintext);
+
+    // The safety number v2 between the identity above and a contact on the test account key.
+    let sender = &v1["first_message"]["sender"];
+    let remote = VerifiedIdentity {
+        account_public_key: derive_account_key(ACCOUNT_SEED.to_vec(), 1).unwrap().key.public_key(),
+        curve25519_key: sender["curve25519_key"].as_str().unwrap().into(),
+        ed25519_key: sender["ed25519_key"].as_str().unwrap().into(),
+        created_at: REMOTE_CREATED.into(),
+    };
+    let number = safety_number(local.clone(), remote.clone()).unwrap();
+    let identity_json = |i: &VerifiedIdentity| json!({ "account_public_key": i.account_public_key, "curve25519_key": i.curve25519_key, "ed25519_key": i.ed25519_key });
+
+    let vectors = json!({
+        "description": "SOMBE account key test vectors (sombe-chat-crypto 0.7.0). Test seeds and test keys only: never use them for anything real. Every text is UTF-8, lines separated by \\n, no final \\n.",
+        "wallet": { "seed_hex": hex(&WALLET_SEED), "address": card.wallet_address },
+        "account_keys": account_keys,
+        "house_vector": { "phrase": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", "wallet_seed_hex": HOUSE_WALLET_SEED_HEX, "keys": house },
+        "sealed_key": { "sealing_key_hex": hex(&SEALING_KEY), "nonce_hex": hex(&SEAL_NONCE), "generation": 1, "seed_hex": hex(&seed1), "aad": "sombe:chat_account_seal:v1 then the byte 0x01", "sealed": sealed },
+        "wallet_card": { "text": card_text, "fingerprint": card_fingerprint, "wallet_address": card.wallet_address, "account_public_key": card.account_public_key, "wallet_signature": card.wallet_signature },
+        "identity_v3": {
+            "pickle_key_hex": v1["pickle_key_hex"], "account_pickle": v1["identity"]["account_pickle"],
+            "account_public_key": gen1.key.public_key(), "curve25519_key": olm_keys.curve25519_key, "ed25519_key": olm_keys.ed25519_key,
+            "created_at": STATEMENT_CREATED, "body": body, "identity_signature": signed.identity_signature,
+            "statement": signed.statement, "account_signature": signed.account_signature,
+        },
+        "device": { "public_key_der_hex": DEVICE_DER_HEX, "fingerprint": device_fingerprint },
+        "sign_in": { "message": sign_in, "account_signature": sign_in_signature },
+        "account_move": moves,
+        "rotation": proof_json(&rotation.proof, &rotation.card),
+        "rotation_1_to_3": proof_json(&proven.proof, &proven.card),
+        "account_rotation_content": { "bytes": plaintext.len(), "plaintext": plaintext },
+        "invalid_account_rotation_content": invalid_rotations,
+        "safety_number": {
+            "local": identity_json(&local), "remote": identity_json(&remote),
+            "digits": number.digits, "qr_payload": number.qr_payload,
+        },
+    });
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vectors/v3.json");
+    std::fs::write(&path, serde_json::to_string_pretty(&vectors).unwrap() + "\n").unwrap();
+    println!("wrote {}", path.display());
+}
+
+/// `account_rotation` contents that must be refused as `InvalidContent`.
+fn invalid_rotations(valid: &str) -> Vec<String> {
+    let mut base: serde_json::Map<String, Value> = serde_json::from_str(valid).unwrap();
+    base.remove("pad");
+    let with = |change: &dyn Fn(&mut serde_json::Map<String, Value>)| {
+        let mut map = base.clone();
+        change(&mut map);
+        let text = serde_json::to_string(&map).unwrap();
+        assert!(
+            matches!(
+                decode_content(text.clone()),
+                Err(sombe_chat_crypto::ChatCryptoError::InvalidContent { .. })
+            ),
+            "{text}"
+        );
+        text
+    };
+    vec![
+        with(&|m| {
+            m.insert("generation".into(), Value::from(1));
+        }),
+        with(&|m| {
+            m.insert("generation".into(), Value::from("2"));
+        }),
+        with(&|m| {
+            m.insert("generation".into(), Value::from(32768));
+        }),
+        with(&|m| {
+            let old = m["old_account_public_key"].clone();
+            m.insert("new_account_public_key".into(), old);
+        }),
+        with(&|m| {
+            m.insert("later_field".into(), Value::from(1));
+        }),
+        with(&|m| {
+            m.remove("wallet_signature");
+        }),
+        with(&|m| {
+            m.insert("old_signature".into(), m["wallet_address"].clone());
+        }),
+    ]
+}
+
+fn hkdf_seed(wallet: &[u8; 32], generation: u16) -> [u8; 32] {
+    let mut seed = [0u8; 32];
+    Hkdf::<Sha256>::new(None, wallet)
+        .expand(format!("sombe:chat_account:{generation}").as_bytes(), &mut seed)
+        .unwrap();
+    seed
+}
+
+fn seal_by_hand(key: &[u8; 32], nonce: &[u8; 24], generation: u16, seed: &[u8; 32]) -> String {
+    let mut clear = generation.to_be_bytes().to_vec();
+    clear.extend_from_slice(seed);
+    let mut aad = b"sombe:chat_account_seal:v1".to_vec();
+    aad.push(1);
+    let sealed = XChaCha20Poly1305::new_from_slice(key)
+        .unwrap()
+        .encrypt(&XNonce::from(*nonce), Payload { msg: &clear, aad: &aad })
+        .unwrap();
+    let mut out = vec![1u8];
+    out.extend_from_slice(nonce);
+    out.extend_from_slice(&sealed);
+    vodozemac::base64_encode(out)
+}
+
+fn public_of(seed: &[u8; 32]) -> String {
+    bs58::encode(Ed25519SecretKey::from_slice(seed).public_key().as_bytes()).into_string()
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn unhex(text: &str) -> Vec<u8> {
+    (0..text.len()).step_by(2).map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap()).collect()
 }
 
 /// The test wallet's card for the test account key, signed by the wallet.
