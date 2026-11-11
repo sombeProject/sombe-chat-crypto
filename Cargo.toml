@@ -26,7 +26,7 @@ bindgen = ["uniffi/cli"]
 
 [dependencies]
 # libolm-compat is off: SOMBE never imports libolm pickles.
-vodozemac = { version = "=0.11.1", default-features = false, features = ["precomputed-tables"] }
+vodozemac = { version = "=0.11.2", default-features = false, features = ["precomputed-tables"] }
 uniffi = "=0.32.2"
 bs58 = "0.5.1"
 serde = { version = "1", features = ["derive"] }
