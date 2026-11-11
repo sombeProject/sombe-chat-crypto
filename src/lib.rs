@@ -3,6 +3,8 @@
 //! The app never sees a vodozemac type: it holds one `ChatCrypto` (the account) and
 //! keeps sessions as opaque, encrypted pickles that go in and out of each call, so it
 //! can write the advanced session in the same database transaction as the result.
+//! Since 0.7.0 it also holds the account key (`ChatAccountKey`): the app never sees its
+//! private half, only its public key and the texts it signed.
 //! The wire formats are described in PROTOCOL.md.
 
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -11,10 +13,15 @@ use vodozemac::olm::{Account, AccountPickle, OlmMessage, Session, SessionConfig,
 use vodozemac::{base64_decode, base64_encode, Curve25519PublicKey};
 use zeroize::Zeroizing;
 
+mod account;
 mod content;
 mod safety;
 mod statement;
 
+pub use account::{
+    AccountRotation, AccountRotationContent, ChatAccountKey, DerivedAccount, ProvenRotation, RotationProof,
+    SignedStatement, WalletCard,
+};
 pub use content::{Content, ContentBody, ReceiptStatus, TypingState};
 
 uniffi::setup_scaffolding!();
@@ -51,12 +58,27 @@ pub enum ChatCryptoError {
     /// is authentic but cannot be shown. Never read as another kind.
     #[error("unsupported content: {reason}")]
     UnsupportedContent { reason: String },
-    /// The identity names another wallet than the one pinned for this contact.
-    #[error("the contact's wallet address changed")]
-    WalletChanged,
     /// The identity is not newer than the one pinned for this contact.
     #[error("identity is older than the pinned one")]
     StaleIdentity,
+    /// A sealed account key that does not open: wrong sealing key, changed or truncated
+    /// text, or another format version (since 0.7.0). Never more detail.
+    #[error("the sealed account key does not open")]
+    InvalidSealedKey,
+    /// The account key was asked to sign a text that is not exactly one of its formats
+    /// (since 0.7.0). Nothing was signed.
+    #[error("refused to sign: {reason}")]
+    RefusedToSign { reason: String },
+    /// The wallet secret does not give this account key at its generation (since 0.7.0).
+    #[error("the wallet secret does not give this account key")]
+    WrongGeneration,
+    /// The account key is at generation 32767 and cannot rotate any more (since 0.7.0).
+    #[error("no generation left")]
+    GenerationExhausted,
+    /// The identity names another account key than the one pinned for this contact, without
+    /// a valid rotation proof (since 0.7.0): pause the contact until the safety codes match.
+    #[error("the contact's account key changed without proof")]
+    AccountChanged,
 }
 
 type Result<T> = std::result::Result<T, ChatCryptoError>;
@@ -68,13 +90,47 @@ pub struct IdentityKeys {
     pub ed25519_key: String,
 }
 
-/// An identity whose statement was checked against its wallet signature.
+/// An identity whose statement v3 was checked against its account key.
 #[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
 pub struct VerifiedIdentity {
-    pub wallet_address: String,
+    pub account_public_key: String,
     pub curve25519_key: String,
     pub ed25519_key: String,
     pub created_at: String,
+}
+
+/// The columns of an identity statement v3, as the server returns them. The module rebuilds
+/// the text itself.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct StatementFields {
+    pub account_public_key: String,
+    pub curve25519_key: String,
+    pub ed25519_key: String,
+    pub created_at: String,
+    /// Base64 without padding.
+    pub identity_signature: String,
+    /// Base58.
+    pub account_signature: String,
+}
+
+/// The Olm keys pinned for a contact, with the date of their statement.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct PinnedOlm {
+    pub curve25519_key: String,
+    pub ed25519_key: String,
+    pub created_at: String,
+}
+
+/// What the app pinned for a contact. Present as soon as an account key is pinned, even
+/// before any Olm keys.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct PinnedIdentity {
+    pub account_public_key: String,
+    /// Known once a rotation of this contact was accepted.
+    pub account_generation: Option<u16>,
+    /// Filled by the first wallet card accepted for this contact.
+    pub wallet_address: Option<String>,
+    pub olm: Option<PinnedOlm>,
 }
 
 /// How a contact's identity compares with the one the app pinned for them.
@@ -86,6 +142,12 @@ pub enum IdentityUpdate {
     Unchanged,
     /// A newer identity (a new phone): pin it, and drop the contact's verified mark.
     Changed,
+    /// The contact proved a new account key, same Olm keys: pin the key, keep the session,
+    /// drop the verified mark (since 0.7.0).
+    AccountRotated,
+    /// The contact proved a new account key and has new Olm keys: pin both, as for
+    /// `Changed` (since 0.7.0).
+    AccountRotatedAndChanged,
 }
 
 /// The code two people compare to check their conversation.
@@ -106,6 +168,8 @@ pub enum ScanResult {
     Match,
     /// A SOMBE safety number, but another one.
     Mismatch,
+    /// A version 1 safety number, from a phone not yet on 0.7.0 (since 0.7.0).
+    OutdatedCode,
     /// Not a SOMBE safety number at all.
     NotASafetyCode,
 }
@@ -182,14 +246,6 @@ impl ChatCrypto {
     pub fn identity_keys(&self) -> IdentityKeys {
         let keys = self.account().identity_keys();
         IdentityKeys { curve25519_key: keys.curve25519.to_base64(), ed25519_key: keys.ed25519.to_base64() }
-    }
-
-    /// The text the wallet signs to vouch for this identity. It already carries the
-    /// identity's own signature of the wallet address, so no wallet can claim these keys.
-    pub fn identity_statement(&self, wallet_address: String, created_at: String) -> Result<String> {
-        let body = statement::body(&wallet_address, &self.identity_keys(), &created_at)?;
-        let identity_signature = self.account().sign(&body).to_base64();
-        Ok(statement::build(&body, &identity_signature))
     }
 
     /// Generates `count` one time keys and returns every unpublished one, signed.
@@ -302,6 +358,11 @@ impl ChatCrypto {
 }
 
 impl ChatCrypto {
+    /// The identity's signature (base64) of a statement body. Only `statement` texts reach it.
+    pub(crate) fn sign_text(&self, text: &str) -> String {
+        self.account().sign(text).to_base64()
+    }
+
     fn account(&self) -> MutexGuard<'_, Account> {
         // Every mutation is a single vodozemac call, so a panic cannot leave
         // the account half written behind a poisoned lock.
@@ -309,24 +370,49 @@ impl ChatCrypto {
     }
 }
 
-/// Checks an identity statement against the wallet that signed it (base58 signature).
+/// Derives the account key of `generation` (1 to 32767) from the 32 byte wallet seed
+/// (`m/44'/501'/0'/0'`), and its wallet card signed by the wallet. The wallet secret is
+/// erased from the module's memory before returning.
 #[uniffi::export]
-pub fn verify_identity(
-    statement: String,
-    wallet_address: String,
-    wallet_signature: String,
-) -> Result<VerifiedIdentity> {
-    statement::verify(&statement, &wallet_address, &wallet_signature)
+pub fn derive_account_key(wallet_secret: Vec<u8>, generation: u16) -> Result<DerivedAccount> {
+    account::derive(wallet_secret, generation)
 }
 
-/// Compares a contact's verified identity with the one pinned for them (none the first
-/// time). Refuses an identity that is not strictly newer, or that names another wallet.
+/// The rotation proof from the key of `from_generation` to the key of `to_generation`
+/// (1 ≤ from < to ≤ 32767), and the wallet card of the latter. Only public data.
+#[uniffi::export]
+pub fn prove_rotation(
+    wallet_secret: Vec<u8>,
+    from_generation: u16,
+    to_generation: u16,
+) -> Result<ProvenRotation> {
+    account::prove(wallet_secret, from_generation, to_generation)
+}
+
+/// Checks a wallet card: canonical base58 fields (`InvalidKey`) and the wallet's signature
+/// (`InvalidSignature`).
+#[uniffi::export]
+pub fn verify_wallet_card(card: WalletCard) -> Result<()> {
+    account::verify_wallet_card(&card)
+}
+
+/// Checks an identity statement v3 from the server's columns: the module rebuilds the
+/// seven lines, then checks the identity's and the account key's signatures.
+#[uniffi::export]
+pub fn verify_identity(fields: StatementFields) -> Result<VerifiedIdentity> {
+    statement::verify(&fields)
+}
+
+/// Compares a contact's verified identity with the one pinned for them (none when no
+/// account key is pinned yet). Another account key passes only with `rotation`, a valid
+/// `account_rotation` content from the pinned key and the pinned wallet.
 #[uniffi::export]
 pub fn check_identity_update(
-    pinned: Option<VerifiedIdentity>,
+    pinned: Option<PinnedIdentity>,
     candidate: VerifiedIdentity,
+    rotation: Option<AccountRotationContent>,
 ) -> Result<IdentityUpdate> {
-    statement::check_update(pinned.as_ref(), &candidate)
+    statement::check_update(pinned.as_ref(), &candidate, rotation.as_ref())
 }
 
 /// The safety number of a conversation, from both verified identities (as returned by

@@ -7,24 +7,148 @@ SOMBE server stores and relays ciphertext; it never sees the text.
 The cryptography is [vodozemac](https://github.com/matrix-org/vodozemac), the
 Matrix project's Rust implementation of Olm (the Double Ratchet with an X3DH style
 handshake, as in Signal). This repository only adds the thin layer SOMBE needs on top:
-an identity signed by the person's Solana wallet, signed one time keys, the envelope,
-the content format, and the safety number two people compare. Nothing here invents new
-cryptography.
+the account key drawn from the person's Solana wallet, an identity signed by that key,
+signed one time keys, the envelope, the content format, and the safety number two people
+compare. Nothing here invents new cryptography: the account key uses HKDF-SHA256
+(RFC 5869), Ed25519 and XChaCha20-Poly1305, from the RustCrypto crates `hkdf` and
+`chacha20poly1305`.
 
-`vectors/v1.json` holds test vectors for every format below (written by 0.4.0), and
-`vectors/v2.json` those of content version 2 (since 0.5.0; wallet card and payment kinds
-since 0.6.0).
+`vectors/v1.json` holds test vectors written by 0.4.0 (its identity statement and safety
+number are no longer read since 0.7.0; its keys, sessions and version 1 contents still
+are), `vectors/v2.json` those of content version 2 (since 0.5.0; wallet card and payment
+kinds since 0.6.0), and `vectors/v3.json` those of the account key (since 0.7.0): its
+derivation, the sealed key, the wallet card and its fingerprint, the four texts it signs,
+the rotation proof, the `account_rotation` content and the safety number v2. The ChatPay
+server replays `vectors/v3.json` byte for byte, so the server and the module never build
+a text differently.
+
+## Account key (since 0.7.0)
+
+A ChatPay account is held by its own Ed25519 key, the account key, not by the wallet.
+The server only ever sees its public key; it never learns the wallet address.
+
+**Derivation.** The 32 byte seed of the key of generation `n` (1 to 32767, the range of a
+`smallint`) is
+
+```
+HKDF-SHA256(IKM = wallet seed, salt = empty, info = "sombe:chat_account:<n>", L = 32)
+```
+
+where the wallet seed is the 32 byte Ed25519 seed of the Solana key at `m/44'/501'/0'/0'`
+and an empty salt means 32 zero bytes (RFC 5869). The same recovery phrase therefore gives
+the same account key on any phone. HKDF is one way: the account key does not give the
+wallet key back. Its public key is written in base58 (32 bytes), and every signature by
+the account key in base58 (64 bytes), like a Solana signature.
+
+**Only the module sees it.** `derive_account_key(wallet_secret, generation)` returns a
+`ChatAccountKey` object and its wallet card. The object gives only `public_key()` and
+`generation()`; no function returns its seed or private key, and none signs a free text.
+The module erases `wallet_secret` and every intermediate value from its memory before
+returning (`Zeroizing`), and the key itself when the object is dropped. It uses the wallet
+key only in `derive_account_key`, `rotate` and `prove_rotation`.
+
+**Sealed on the phone.** `seal(sealing_key)` returns, in standard base64 without
+padding, the bytes
+
+```
+0x01 (format version) ‖ nonce (24 random bytes, drawn for each call) ‖ XChaCha20-Poly1305 output
+```
+
+The clear text (34 bytes) is the generation (2 bytes, big endian) followed by the seed;
+the output is those 34 bytes encrypted, then the 16 byte tag. The associated data
+(authenticated, not encrypted) is the UTF-8 bytes of `sombe:chat_account_seal:v1`
+followed by the version byte. `ChatAccountKey.unseal(sealed, sealing_key)` opens it; a
+wrong sealing key, a changed or truncated text, or another version are all
+`InvalidSealedKey`, with no more detail. The sealing key is 32 bytes (`InvalidKey`
+otherwise); the app keeps it apart, sealed by the Android Keystore.
+
+**The four texts it signs.** The account key signs only these texts, each recognized by
+its first line, so no text of one format can pass for another. Lines are separated by a
+single `\n`, with no final newline, in UTF-8.
+
+| Text | First line | Signed by |
+|---|---|---|
+| Identity statement v3 | `SOMBE chat identity v3` | `sign_identity_statement`, see Identity |
+| Sign in | `SOMBE ChatPay sign in` | `sign_sign_in` |
+| Account move | `SOMBE account move v1` | `sign_move` |
+| Rotation | `SOMBE account rotate v1` | `rotate`, `prove_rotation` |
+
+*Sign in.* The server writes the message; `sign_sign_in(message, device_public_key_der)`
+signs it only if it has exactly these five lines, and returns `RefusedToSign` otherwise
+(nothing signed):
+
+```
+SOMBE ChatPay sign in
+account:<this account key>
+device:<SHA-256, lower case hexadecimal, of device_public_key_der, computed by the module>
+nonce:<32 lower case hexadecimal digits>
+issued:<ISO 8601 UTC>
+```
+
+The module does not compare `issued` with the phone's clock; the server keeps the nonce
+for 5 minutes and accepts it once.
+
+*Account move* (the one time move of an account from the wallet to its account key):
+
+```
+SOMBE account move v1
+card:<SHA-256, lower case hexadecimal, of the wallet card text alone, signature excluded>
+device:<SHA-256, lower case hexadecimal, of device_public_key_der>
+identity:<the identity id as a lower case UUID, or ->
+```
+
+`sign_move(card, device_public_key_der, identity_id)` first checks the card (below) and
+that it names this account key (`RefusedToSign` otherwise). An identity id that is not a
+lower case UUID is `InvalidStatement`.
+
+**The wallet card.** The wallet vouches for the account key once, with the text
+
+```
+SOMBE wallet card v1
+wallet:<wallet address, base58>
+account:<account key, base58>
+```
+
+signed by the wallet key (Ed25519, base58). `derive_account_key` computes the wallet
+address itself (the base58 public key of the wallet seed) and signs the card; no function
+takes an address from the app to sign. `verify_wallet_card(card)` rebuilds the text and
+checks the signature against `wallet_address`: a field that is not canonical base58 of
+32 bytes is `InvalidKey`, a wrong signature `InvalidSignature`. The card travels only
+inside encrypted content (`wallet_card`, `account_rotation`), never to the server.
+
+**Rotation.** A person may change their account key (a key they fear was seen, for
+instance). `rotate(wallet_secret)` first checks that the wallet seed gives this very key
+at its generation `n` (`WrongGeneration` otherwise, nothing returned), then derives the
+key of generation `n + 1` and returns it with its wallet card and the proof: both keys
+sign the same text
+
+```
+SOMBE account rotate v1
+old:<old account key>
+new:<new account key>
+generation:<n + 1>
+```
+
+At generation 32767 `rotate` returns `GenerationExhausted`. Since every generation comes
+from the same seed, `prove_rotation(wallet_secret, from, to)` (1 ≤ from < to ≤ 32767)
+gives the proof from any earlier key to a later one (`generation:<to>`) and the card of the
+later key. A proof `k → n` is as strong as one step: it needs the key `k`, the key `n`
+and the wallet key. A proof holds only public data.
+
+The phone sends the server the two signatures (`/account/rotate`), which checks them
+against the account's current key and the new key, then keeps neither. It sends each
+contact an `account_rotation` content (below) from the key that contact pinned.
 
 ## Identity
 
-Each wallet has at most one active chat identity: an Olm account living on one phone.
-Its two public keys (`curve25519`, `ed25519`, unpadded base64) and the wallet vouch for
-each other with this UTF-8 text:
+Each account has at most one active chat identity: an Olm account living on one phone.
+Its two public keys (`curve25519`, `ed25519`, unpadded base64) and the account key vouch
+for each other with this UTF-8 text (version 3, since 0.7.0):
 
 ```
-SOMBE chat identity v2
+SOMBE chat identity v3
 protocol:olm-v1
-wallet:<wallet address, base58>
+account:<account key, base58>
 curve25519:<identity curve25519 key>
 ed25519:<identity ed25519 key>
 created:<ISO 8601 UTC, e.g. 2026-10-14T18:30:01.183Z>
@@ -32,33 +156,48 @@ identity_signature:<signature of the six lines above by the identity ed25519 key
 ```
 
 Lines are separated by a single `\n`, with no trailing newline. The identity's ed25519
-key first signs the first six lines (the body, also without a trailing newline), so the
-identity vouches for the wallet: without it, any wallet could sign a statement naming
-someone else's keys. The wallet then signs the whole seven line text with its ed25519
-key (the Solana key); that signature is the 64 byte ed25519 signature in base58.
+key first signs the first six lines (the body), so the identity vouches for the account
+key: without it, any account key could sign a statement naming someone else's keys. The
+account key then signs the whole seven line text (base58). `sign_identity_statement(account,
+created_at)` does both and returns the text, `identity_signature` and `account_signature`;
+`created_at` that is not this ISO 8601 UTC form is `InvalidStatement`.
 
-A verifier checks the wallet signature against the wallet address it expects (never
-against an address taken from the text alone), then checks the text is exactly this
-format, then checks `identity_signature` against the `ed25519` key of the text. A `v1`
-statement (0.2.0 and earlier, six lines and no identity signature) is refused: each
-identity publishes a `v2` statement again, signed by its wallet.
+The server stores and returns only the fields, never the text. A verifier calls
+`verify_identity` with those fields (`account_public_key`, `curve25519_key`,
+`ed25519_key`, `created_at`, `identity_signature`, `account_signature`): the module
+rebuilds the seven lines itself, checks `identity_signature` over the first six with the
+`ed25519` key, then `account_signature` over the seven with `account_public_key`. The app
+never builds a statement text. Statements v1 (0.2.0 and earlier) and v2 (signed by the
+wallet, up to 0.6.0) are no longer read.
 
 The server checks the statement before accepting an identity, and refuses one that is
-older than the previous identity of the same wallet or more than 24 hours away from
-its clock. The app checks it again before it encrypts anything to a contact, against
-the wallet address it pinned for that contact the first time it saw it.
+older than the previous identity of the same account or more than 24 hours away from its
+clock. The app checks it again before it encrypts anything to a contact.
 
-The app also pins the contact's latest verified identity, and compares each identity it
-receives with it (`check_identity_update`):
+The app pins, for each contact, the account key it first saw (and, once a rotation of
+theirs was accepted, its generation), the wallet address of the first wallet card it
+accepted, and the latest verified Olm keys. `check_identity_update(pinned, candidate,
+rotation)` compares each identity it receives with them, in this order:
 
-- Nothing pinned yet: the identity is new, the app pins it.
-- Same `curve25519` and `ed25519` keys: unchanged.
-- Other keys and a strictly later `created`: the contact moved to a new phone. The app
-  pins the new identity, removes the contact's verified mark and shows that the safety
-  number changed.
-- Other keys and the same or an earlier `created`: refused. A server that relays an old,
-  validly signed identity (from a lost or stolen phone, say) cannot bring it back.
-- Another wallet: refused; a changed address blocks sending, as above.
+| Case | Result |
+|---|---|
+| no account key pinned | `New` |
+| same account key, no Olm keys pinned yet | `New` (the first identity of this account) |
+| same account key, same Olm keys | `Unchanged` |
+| same account key, other Olm keys, strictly later `created` | `Changed`: a new phone. The app pins it, removes the verified mark, shows that the safety number changed |
+| same account key, other Olm keys, same or earlier `created` | `StaleIdentity`: a server that relays an old, validly signed identity cannot bring it back |
+| another account key, every rotation condition holds, same Olm keys | `AccountRotated` |
+| another account key, every rotation condition holds, other Olm keys (or none pinned) | `AccountRotatedAndChanged`: the verified mark falls, as for `Changed` |
+| another account key, any condition missing (even with no Olm keys pinned) | `AccountChanged`: the app pauses the contact until the safety codes match |
+
+The rotation conditions, all required: an `account_rotation` content is given; its old key
+is the pinned account key and its new key the candidate's; both signatures hold on the
+rotation text; if the contact's generation is known, the proof's generation is strictly
+greater (no way back to a key already left); a wallet address is pinned; the card
+(`wallet_address`, new key, `wallet_signature`) holds and names that pinned wallet; and if
+Olm keys are pinned, the candidate's `created` is strictly later. A proof `k → n` passes
+whatever the gap, as long as `k` is the pinned key. No card and no answer from the server
+ever changes the pinned account key on its own.
 
 `created` values compare in time order; a value without milliseconds counts as `.000`.
 
@@ -190,9 +329,10 @@ Rules, all checked by the module, when written and when read (otherwise `Invalid
 - `wallet_card`: the sender's wallet card. `wallet_address` and `account_public_key` are
   the base58 form of exactly 32 bytes, `wallet_signature` of exactly 64 bytes. The wallet
   signed the text `SOMBE wallet card v1\nwallet:<wallet_address>\naccount:<account_public_key>`
-  (lines joined by `\n`, no final `\n`) once, and the same card is sent again as is. The
-  module checks only the form of the fields: the app checks the signature against
-  `wallet_address`, and that `account_public_key` is the contact's account key.
+  (lines joined by `\n`, no final `\n`) once, and the same card is sent again as is.
+  `decode_content` checks only the form of the fields; since 0.7.0 the app checks the
+  signature with `verify_wallet_card`, and that `account_public_key` is the contact's
+  pinned account key.
 - `wallet_card_request` asks the contact to send their card again. It has no field of
   its own.
 - `request_id` is a well formed UUID, written and returned in lower case like every other
@@ -224,6 +364,24 @@ envelope to a larger bucket, like a long text: up to 4096 bytes for 500 emoji.
 
 The old `payment` kind (the comment of a payment card the server kept) is still read by
 0.6.0. The app no longer writes it: payments now travel as the kinds above.
+
+### Account rotation (since 0.7.0)
+
+Another new kind of version 2: the rotation proof and the new key's wallet card,
+together. Not urgent, never shown in the conversation, never notified. A phone on 0.6.0
+reads it as `UnsupportedContent`.
+
+```json
+{"v":2,"kind":"account_rotation","conversation_id":"…","envelope_id":"…","old_account_public_key":"…","new_account_public_key":"…","generation":2,"old_signature":"…","new_signature":"…","wallet_address":"…","wallet_signature":"…","pad":"   …"}
+```
+
+Checked when written and when read (otherwise `InvalidContent`): the two keys and the
+address are canonical base58 of 32 bytes, the three signatures canonical base58 of 64
+bytes, `generation` a JSON integer from 2 to 32767, the old key differs from the new
+one, every field is present and there is no other. The signatures are checked by
+`check_identity_update`, not by `decode_content`. In the `Content` record the variant is
+`AccountRotation { rotation }`, whose record is the one `check_identity_update` takes. It
+is padded to 1024 bytes.
 
 ### Reading version 1
 
@@ -341,13 +499,15 @@ Up to 0.4.0 the plaintext was this JSON. Since 0.5.0 it is still read, never wri
 
 Two people check that no one sits between their phones by comparing a safety number,
 in person (one scans the other's QR code) or by reading it aloud on a video call. Each
-phone computes it from both verified identities; the server is not involved.
+phone computes it from both verified identities; the server is not involved. Since 0.7.0
+it is version 2, computed from the account key (a phone takes its own account key from
+`ChatAccountKey.public_key()`).
 
 1. For each identity, the input is this UTF-8 text:
 
    ```
-   SOMBE safety number v1
-   wallet:<wallet address, base58>
+   SOMBE safety number v2
+   account:<account key, base58>
    curve25519:<identity curve25519 key>
    ed25519:<identity ed25519 key>
    ```
@@ -357,22 +517,35 @@ phone computes it from both verified identities; the server is not involved.
    integer and kept modulo 100000, written as 5 digits with leading zeros: 30 digits.
 4. The two identities' 30 digit strings are sorted (as strings) and joined: 60 digits,
    shown as 12 groups of 5. Both phones get the same number whichever side computes it.
-5. The QR code holds the text `SOMBE-SN1:` followed by the 60 digits. A phone that scans
+5. The QR code holds the text `SOMBE-SN2:` followed by the 60 digits. A phone that scans
    it compares those digits with its own: same (`Match`, the person can mark the contact
-   verified), different (`Mismatch`), or not a SOMBE safety number.
+   verified), different (`Mismatch`), a version 1 code `SOMBE-SN1:` and 60 digits from a
+   phone not yet on 0.7.0 (`OutdatedCode`), or not a SOMBE safety number.
 
-Both wallets must differ. The number changes as soon as either wallet or either key
-changes, so a substituted key shows other digits on each side. Whether a contact is
-verified is stored only on the phone that verified it, never sent to the server.
+Both account keys must differ (`InvalidKey` otherwise). The number changes as soon as
+either account key or either Olm key changes, so a substituted key shows other digits on
+each side, and so does a rotation: contacts lose their verified mark. Whether a contact
+is verified is stored only on the phone that verified it, never sent to the server.
 
 ## What this does not protect
 
 - Metadata: the server sees who talks to whom and when (no sealed sender, no hidden
   timing), and the size bucket of each message. Payments are also public on the Solana
   blockchain, wallet to wallet.
-- The very first contact trusts the wallet address the server gives for that contact.
-  From then on the phone pins it, and a changed address blocks sending. Comparing the
-  safety number is what removes that trust; until two people do it, they rely on it.
+- The very first contact trusts the account key the server gives for that contact. From
+  then on the phone pins it, and another key without a rotation proof pauses the contact.
+  Comparing the safety number is what removes that trust; until two people do it, they
+  rely on it.
+- A phone taken whole, recovery phrase and PIN included: the attacker is then the person,
+  and can rotate the account key with a valid proof. Only comparing the codes again with
+  the new phone would show it.
+- Right after `/account/rotate`, the server sees an envelope of the same size bucket leave
+  for each contact, which confirms a list of contacts it already knows.
+- The safety number v2 no longer covers the wallet address: only the wallet card vouches
+  for it.
+- The wallet seed passes through the app's memory (the JVM) when the account key is
+  derived or rotated; it is already there for Solana. The module erases its own copies,
+  not the app's, nor the buffer UniFFI copies the call's bytes into on the way in.
 - No post quantum protection (Olm has none).
 - One phone per wallet. A restored wallet gets a new identity and cannot read older
   messages.

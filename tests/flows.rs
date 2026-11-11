@@ -1,6 +1,6 @@
 mod common;
 
-use common::{device, key, TestWallet};
+use common::{device, key};
 use sombe_chat_crypto::*;
 
 const CREATED: &str = "2026-10-14T18:30:01.183Z";
@@ -178,62 +178,83 @@ fn unknown_protocol_and_broken_ciphertext() {
 }
 
 #[test]
-fn identity_statement_signed_by_the_wallet() {
-    let wallet = TestWallet::from_seed([1; 32]);
+fn identity_statement_v3_signed_by_the_account_key() {
+    let account = derive_account_key(vec![1; 32], 1).unwrap().key;
     let bob = device();
-    let statement = bob.identity_statement(wallet.address(), CREATED.into()).unwrap();
+    let signed = account.sign_identity_statement(bob.clone(), CREATED.into()).unwrap();
     let keys = bob.identity_keys();
     let body = format!(
-        "SOMBE chat identity v2\nprotocol:olm-v1\nwallet:{}\ncurve25519:{}\ned25519:{}\ncreated:{CREATED}",
-        wallet.address(),
+        "SOMBE chat identity v3\nprotocol:olm-v1\naccount:{}\ncurve25519:{}\ned25519:{}\ncreated:{CREATED}",
+        account.public_key(),
         keys.curve25519_key,
         keys.ed25519_key
     );
-    let (signed, identity_signature) = statement.rsplit_once('\n').unwrap();
-    assert_eq!(signed, body);
-    assert!(identity_signature.starts_with("identity_signature:"));
-    let signature = wallet.sign(&statement);
+    assert_eq!(signed.statement, format!("{body}\nidentity_signature:{}", signed.identity_signature));
+    assert_eq!(signed.statement.split('\n').count(), 7);
 
-    let verified = verify_identity(statement.clone(), wallet.address(), signature.clone()).unwrap();
+    let fields = fields_of(&account.public_key(), &keys, &signed);
+    let verified = verify_identity(fields.clone()).unwrap();
+    assert_eq!(verified.account_public_key, account.public_key());
     assert_eq!(verified.curve25519_key, keys.curve25519_key);
     assert_eq!(verified.ed25519_key, keys.ed25519_key);
     assert_eq!(verified.created_at, CREATED);
 
-    // Another wallet, a changed key, or a forged signature all fail.
-    let other = TestWallet::from_seed([2; 32]);
-    assert_eq!(
-        verify_identity(statement.clone(), other.address(), signature.clone()),
-        Err(ChatCryptoError::InvalidSignature)
-    );
+    // Another account key, a swapped Olm key, a forged signature: all refused.
+    let other = derive_account_key(vec![2; 32], 1).unwrap().key;
+    let wrong_account = StatementFields { account_public_key: other.public_key(), ..fields.clone() };
+    assert_eq!(verify_identity(wrong_account), Err(ChatCryptoError::InvalidSignature));
     let mallory = device();
-    let swapped = statement.replace(&keys.curve25519_key, &mallory.identity_keys().curve25519_key);
-    assert_eq!(verify_identity(swapped, wallet.address(), signature), Err(ChatCryptoError::InvalidSignature));
-    assert_eq!(
-        verify_identity(statement.clone(), wallet.address(), other.sign(&statement)),
-        Err(ChatCryptoError::InvalidSignature)
-    );
-    assert_eq!(
-        verify_identity(statement, wallet.address(), "not-base58-0OIl".into()),
-        Err(ChatCryptoError::InvalidSignature)
-    );
+    let swapped =
+        StatementFields { curve25519_key: mallory.identity_keys().curve25519_key, ..fields.clone() };
+    assert_eq!(verify_identity(swapped), Err(ChatCryptoError::InvalidSignature));
+    let by_other = other.sign_identity_statement(bob.clone(), CREATED.into()).unwrap();
+    let forged = StatementFields { account_signature: by_other.account_signature, ..fields.clone() };
+    assert_eq!(verify_identity(forged), Err(ChatCryptoError::InvalidSignature));
+    let bad_identity =
+        StatementFields { identity_signature: mallory_signature(&mallory, &account), ..fields.clone() };
+    assert_eq!(verify_identity(bad_identity), Err(ChatCryptoError::InvalidSignature));
+    let not_base58 = StatementFields { account_signature: "not-base58-0OIl".into(), ..fields };
+    assert_eq!(verify_identity(not_base58), Err(ChatCryptoError::InvalidSignature));
+}
+
+/// A signature by another identity over a well formed body.
+fn mallory_signature(mallory: &std::sync::Arc<ChatCrypto>, account: &ChatAccountKey) -> String {
+    account.sign_identity_statement(mallory.clone(), CREATED.into()).unwrap().identity_signature
+}
+
+fn fields_of(account: &str, keys: &IdentityKeys, signed: &SignedStatement) -> StatementFields {
+    StatementFields {
+        account_public_key: account.into(),
+        curve25519_key: keys.curve25519_key.clone(),
+        ed25519_key: keys.ed25519_key.clone(),
+        created_at: CREATED.into(),
+        identity_signature: signed.identity_signature.clone(),
+        account_signature: signed.account_signature.clone(),
+    }
 }
 
 #[test]
 fn identity_statement_rejects_bad_inputs() {
     let bob = device();
-    let wallet = TestWallet::from_seed([3; 32]);
-    assert!(bob.identity_statement("abc".into(), CREATED.into()).is_err());
+    let account = derive_account_key(vec![3; 32], 1).unwrap().key;
     for created in ["2026-10-14 18:30:01Z", "2026-10-14T18:30:01", "2026-10-14T18:30:01+01:00", ""] {
-        assert!(bob.identity_statement(wallet.address(), created.into()).is_err(), "{created}");
+        assert!(
+            matches!(
+                account.sign_identity_statement(bob.clone(), created.into()),
+                Err(ChatCryptoError::InvalidStatement { .. })
+            ),
+            "{created}"
+        );
     }
-    assert!(bob.identity_statement(wallet.address(), "2026-10-14T18:30:01Z".into()).is_ok());
+    assert!(account.sign_identity_statement(bob.clone(), "2026-10-14T18:30:01Z".into()).is_ok());
 
-    // A well signed text that is not our format is still refused.
-    let text = "hello";
-    assert!(matches!(
-        verify_identity(text.into(), wallet.address(), wallet.sign(text)),
-        Err(ChatCryptoError::InvalidStatement { .. })
-    ));
+    // Fields the module cannot rebuild a statement from.
+    let signed = account.sign_identity_statement(bob.clone(), CREATED.into()).unwrap();
+    let fields = fields_of(&account.public_key(), &bob.identity_keys(), &signed);
+    let bad_key = StatementFields { account_public_key: "abc".into(), ..fields.clone() };
+    assert!(matches!(verify_identity(bad_key), Err(ChatCryptoError::InvalidKey { .. })));
+    let newline = StatementFields { created_at: format!("{CREATED}\nextra"), ..fields };
+    assert!(matches!(verify_identity(newline), Err(ChatCryptoError::InvalidStatement { .. })));
 }
 
 #[test]

@@ -1,5 +1,6 @@
 //! Checks vectors/v1.json and vectors/v2.json, so a change to a wire format cannot slip
-//! in unnoticed.
+//! in unnoticed. vectors/v3.json (the account key, since 0.7.0) is checked in
+//! tests/account_vectors.rs.
 
 use serde_json::Value;
 use sombe_chat_crypto::*;
@@ -30,23 +31,18 @@ fn wallet_signature_is_reproducible() {
     assert_eq!(signature, s(&v["identity"]["wallet_signature"]));
 }
 
+/// Since 0.7.0 the statement of vectors/v1.json (version 2, signed by the wallet) is no
+/// longer read; its pickled identity still restores with the same keys.
 #[test]
-fn statement_verifies_and_matches_the_account() {
+fn the_pickled_identity_still_restores() {
     let v = vectors();
     let id = &v["identity"];
-    let verified =
-        verify_identity(s(&id["statement"]), s(&v["wallet"]["address"]), s(&id["wallet_signature"])).unwrap();
-    assert_eq!(verified.curve25519_key, s(&id["curve25519_key"]));
-    assert_eq!(verified.ed25519_key, s(&id["ed25519_key"]));
-    assert_eq!(verified.created_at, s(&id["created_at"]));
-
     let account =
         ChatCrypto::restore_account(s(&id["account_pickle"]), unhex(v["pickle_key_hex"].as_str().unwrap()))
             .unwrap();
-    assert_eq!(
-        account.identity_statement(s(&v["wallet"]["address"]), s(&id["created_at"])).unwrap(),
-        s(&id["statement"])
-    );
+    let keys = account.identity_keys();
+    assert_eq!(keys.curve25519_key, s(&id["curve25519_key"]));
+    assert_eq!(keys.ed25519_key, s(&id["ed25519_key"]));
 }
 
 #[test]
@@ -90,31 +86,6 @@ fn first_message_decrypts_with_the_pickled_account() {
     assert_eq!(content.version, 1);
     assert_eq!(content.envelope_id, None);
     assert!(matches!(content.body, ContentBody::Text { ref body, .. } if body == "Salut ! Tu es rentré ?"));
-}
-
-#[test]
-fn safety_number_is_reproducible() {
-    let v = vectors();
-    let n = &v["safety_number"];
-    let identity = |i: &Value| VerifiedIdentity {
-        wallet_address: s(&i["wallet_address"]),
-        curve25519_key: s(&i["curve25519_key"]),
-        ed25519_key: s(&i["ed25519_key"]),
-        created_at: s(&i["created_at"]),
-    };
-    let (local, remote) = (identity(&n["local"]), identity(&n["remote"]));
-    let verified = verify_identity(
-        s(&n["local_statement"]),
-        local.wallet_address.clone(),
-        s(&n["local_wallet_signature"]),
-    )
-    .unwrap();
-    assert_eq!(verified, local);
-
-    let on_local = safety_number(local.clone(), remote.clone()).unwrap();
-    assert_eq!(on_local.digits, s(&n["digits"]));
-    assert_eq!(on_local.qr_payload, s(&n["qr_payload"]));
-    assert_eq!(safety_number(remote, local).unwrap(), on_local);
 }
 
 /// The version 1 contents of vectors/v1.json (written by 0.4.0) are still read, each into

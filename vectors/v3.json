@@ -1,0 +1,143 @@
+{
+  "description": "SOMBE account key test vectors (sombe-chat-crypto 0.7.0). Test seeds and test keys only: never use them for anything real. Every text is UTF-8, lines separated by \\n, no final \\n.",
+  "wallet": {
+    "seed_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "address": "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF"
+  },
+  "account_keys": [
+    {
+      "generation": 1,
+      "info": "sombe:chat_account:1",
+      "seed_hex": "2a79a28bc80a3bdec9d8d576d656135496132b817f5188c19782e06d7a887c62",
+      "public_key": "ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3"
+    },
+    {
+      "generation": 2,
+      "info": "sombe:chat_account:2",
+      "seed_hex": "be9209a80d0b867ab9d85bd6244175b1db24660890a5d9bf10a4029064e2e5d3",
+      "public_key": "Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB"
+    },
+    {
+      "generation": 3,
+      "info": "sombe:chat_account:3",
+      "seed_hex": "f2f190ec5df2c1cf31f77afe15c26e4f89d3cb1ef2a9bc9eeab8890b52bff584",
+      "public_key": "DMPGsyxMnivi7ABuXoYw3cmUYn9qZqnxScFUi4MXbQh8"
+    }
+  ],
+  "house_vector": {
+    "phrase": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "wallet_seed_hex": "37df573b3ac4ad5b522e064e25b63ea16bcbe79d449e81a0268d1047948bb445",
+    "keys": [
+      {
+        "generation": 1,
+        "seed_hex": "a080401f404a5c58d9500e226a35e46fe5d1875bc72f564b64ed56f81046d5f8",
+        "public_key": "FZscPpTgpZTEWBwRPtcFHfyPd5q71514PER6nfxS6Zjm"
+      },
+      {
+        "generation": 2,
+        "seed_hex": "96f5f677b398b91d22e18e6e3bf6095381981488bae45616d572d67bd3d0e5ca",
+        "public_key": "6LSVdTXLWjGeNLxMj9Bkq1iedR8fhWgSEcSgBxjMqheE"
+      }
+    ]
+  },
+  "sealed_key": {
+    "sealing_key_hex": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+    "nonce_hex": "000102030405060708090a0b0c0d0e0f1011121314151617",
+    "generation": 1,
+    "seed_hex": "2a79a28bc80a3bdec9d8d576d656135496132b817f5188c19782e06d7a887c62",
+    "aad": "sombe:chat_account_seal:v1 then the byte 0x01",
+    "sealed": "AQABAgMEBQYHCAkKCwwNDg8QERITFBUWFyvTqAiQaQoI3kjDjS1mXVz+dlOV6PniGwa0u9LOD0xu//bNm6jWbHXPGvOlH9cWbR9L"
+  },
+  "wallet_card": {
+    "text": "SOMBE wallet card v1\nwallet:FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\naccount:ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3",
+    "fingerprint": "5cea19842b9c66cce702d71fd63ed461a6ba594e720855fbd38cb42b39bd4dd9",
+    "wallet_address": "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF",
+    "account_public_key": "ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3",
+    "wallet_signature": "2hKcFqLgzFUTLsdKyuwFekPvsWDJSV7zuAroMVuUP2F7XL5dUcErrPub5n23waMJ782wbFe6X26MBEB8SyWPD8Ag"
+  },
+  "identity_v3": {
+    "pickle_key_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+    "account_pickle": "1MhlaZiGRoWwGf1xqUfWiqkMivY9qQsHmsgdT+MuKfHkifkmN+gu1vMF4Jh3K4Lm6yLtbsAIutlLhn8llLb5AtNbnIF/GESnZbsrYG3hJGZ+XXhVqyrqIGwFVRtmOD7dfIYifppNCRGlOhEk/9sQA0anQe0Yf5KDIiemfdfXM13IaqmLvlzMADhbVZ4IkvViodhfce18yR9KTWm4eKdmQwmncuq3amuXfYOTsFA4G+Q2WiJOI9361WU8M2DuV9CO/wHqwecuQvPGyF8T7uxEotHMpxxuA4w0KLxAp41JVX1RsS24IfPZO3TVjKOATEKNe1/fgK6i+KNZEgeYhNZr/Sk2N+MX3WPg+M+EsDlDaVJLLVK1HxH+C0PK90Jnze7HfOf9VCsm8/ElnCOCWHebkhnonMZj5ZDie2KdlLgYupFVkkPVybYzEcRjyo5GyvwmEeD2pflpg1RLXjglsJeLqeBNmcsuWSTAQ1ZgjhRCu6sV5qvT6QtkxQ6jFjF9W7eHwjVQcYdL9/toPrZlzpqUFEFonInN3zUvlVszF6j1JUwkzOR+qNLsuWLTSJ3jdKNcPnU75CCd4Um0rZjOzrZQN/b+O24GLdpaHapjHNrNrmfmbK/oHB96XJnH5FUqy7a3fZxbSJXFu+iN2G6ogeq0rJA0CKlrYEhku5Aow3e/JTXXjMIOYTIIA1HopXJXCDfGcJurZ5Bb/YSuD21l309A94/ZFax5qy5EANn2P3iwPQAEiX0LTt2SNg",
+    "account_public_key": "ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3",
+    "curve25519_key": "FtxeeS7LCWskoKUova+Wfkkm32IIw5sINX7ieczUpk8",
+    "ed25519_key": "PF+QWtOFyBS3FzlgkkJxuI9tb1P12QNizMCmBwbYMvA",
+    "created_at": "2026-11-11T09:00:00.000Z",
+    "body": "SOMBE chat identity v3\nprotocol:olm-v1\naccount:ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\ncurve25519:FtxeeS7LCWskoKUova+Wfkkm32IIw5sINX7ieczUpk8\ned25519:PF+QWtOFyBS3FzlgkkJxuI9tb1P12QNizMCmBwbYMvA\ncreated:2026-11-11T09:00:00.000Z",
+    "identity_signature": "pf04ee5of6pWTl+cNB5oTG7SvVtP6neHCN/ojJyuQXp7ofrXhqKm/QS0F8RrLXb4zRCnMOP8lIePS3M51OawDA",
+    "statement": "SOMBE chat identity v3\nprotocol:olm-v1\naccount:ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\ncurve25519:FtxeeS7LCWskoKUova+Wfkkm32IIw5sINX7ieczUpk8\ned25519:PF+QWtOFyBS3FzlgkkJxuI9tb1P12QNizMCmBwbYMvA\ncreated:2026-11-11T09:00:00.000Z\nidentity_signature:pf04ee5of6pWTl+cNB5oTG7SvVtP6neHCN/ojJyuQXp7ofrXhqKm/QS0F8RrLXb4zRCnMOP8lIePS3M51OawDA",
+    "account_signature": "3TMtQbJ2jChqQTxqHspstNmFhb2BUBMGB13jNuxKduJb1RkD5NQcrjXscEfjHZGoyNh9qLDbXg1ntszE4X1P87Mp"
+  },
+  "device": {
+    "public_key_der_hex": "3059301306072a8648ce3d020106082a8648ce3d0301070342000485c79d8ac711e20bc8bee61ca8785f4ae986b3d06f18e045790e948299aff5d08f2b2c7b970868624d78722a9805f53fde02ed3b1f2a36887acb7c1b241eb50c",
+    "fingerprint": "6ebe3314f71d694cfb7376ba40fd79c79a8bc2a487edf16b98ce1ab1b3ded911"
+  },
+  "sign_in": {
+    "message": "SOMBE ChatPay sign in\naccount:ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\ndevice:6ebe3314f71d694cfb7376ba40fd79c79a8bc2a487edf16b98ce1ab1b3ded911\nnonce:0f1e2d3c4b5a69788796a5b4c3d2e1f0\nissued:2026-11-11T09:30:00.000Z",
+    "account_signature": "4AmfSYojyTcfwivmkL6gKEs3R9c9fFQeg4TdwNBbELWkLt78YPUXshQYE7V6EGAbTqjV1ppzxbFQutZQ5z2Z4vho"
+  },
+  "account_move": [
+    {
+      "identity_id": "5d0c7a3e-2b4f-4e8a-9c1d-7e6f5a4b3c21",
+      "text": "SOMBE account move v1\ncard:5cea19842b9c66cce702d71fd63ed461a6ba594e720855fbd38cb42b39bd4dd9\ndevice:6ebe3314f71d694cfb7376ba40fd79c79a8bc2a487edf16b98ce1ab1b3ded911\nidentity:5d0c7a3e-2b4f-4e8a-9c1d-7e6f5a4b3c21",
+      "account_signature": "54SzZVP7aGUexPF3Hp7wejgD9oHqNvmqp6fyejiuzzd42h3tAABBtiJMQNwri5LFCANzwjMBXtPvU7AjxxCme26W"
+    },
+    {
+      "identity_id": null,
+      "text": "SOMBE account move v1\ncard:5cea19842b9c66cce702d71fd63ed461a6ba594e720855fbd38cb42b39bd4dd9\ndevice:6ebe3314f71d694cfb7376ba40fd79c79a8bc2a487edf16b98ce1ab1b3ded911\nidentity:-",
+      "account_signature": "223kNA6rtuMfCFMB63WLrrARtcMWbZ4wXQYvXQFsyeiEWi1ETpBqyN5ToXbTuazaqkHxHGaxYXwBiuBNArQHU9og"
+    }
+  ],
+  "rotation": {
+    "text": "SOMBE account rotate v1\nold:ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\nnew:Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB\ngeneration:2",
+    "old_account_public_key": "ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3",
+    "new_account_public_key": "Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB",
+    "generation": 2,
+    "old_signature": "wmkikwS6qcWDJQkh3LhNmfwLZdDLXbLAFH2G2FqPoXkRTRmTGs2RqEWULg2aoiKAR7hmGn8C8GxuS4k9v4qTKZQ",
+    "new_signature": "2sAJom8D1bSfRw5Pa9yn7YmT61Ay5FgdisDxvntdgvWkdYs9ai9z5SyZ9qPibZX1bUywfHMSjBf2dUhH1jb3Gdjw",
+    "card": {
+      "wallet_address": "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF",
+      "account_public_key": "Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB",
+      "wallet_signature": "2BavaDVRj84U8GyUXums5Yhg8SigNaBM5X1eQqq7UDC4VtwUKUEXxACbZXWDx26QGvpP4ZN7HQKJbsZcKLg9f3F1"
+    }
+  },
+  "rotation_1_to_3": {
+    "text": "SOMBE account rotate v1\nold:ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\nnew:DMPGsyxMnivi7ABuXoYw3cmUYn9qZqnxScFUi4MXbQh8\ngeneration:3",
+    "old_account_public_key": "ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3",
+    "new_account_public_key": "DMPGsyxMnivi7ABuXoYw3cmUYn9qZqnxScFUi4MXbQh8",
+    "generation": 3,
+    "old_signature": "5DTH2Jx3s18e1N54LVL29uXnbko7Fnxs21mZZ8E8u7F6dqmYnxnd7Qjt2EZNueEdkn7HtMLtPuz2SWJYTTbCQM6F",
+    "new_signature": "5mpLXty4k47NuVSZEree1Hva2Jb46FDFzHYNXk4ZCvEvZzywD9YtX2DFdPc2sojMsb8n9WiqyGMfDbzxBNjGbmPP",
+    "card": {
+      "wallet_address": "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF",
+      "account_public_key": "DMPGsyxMnivi7ABuXoYw3cmUYn9qZqnxScFUi4MXbQh8",
+      "wallet_signature": "4fUh8L7FqpPcVoqm1edQ8e4sAPGy162Nhha5eEiTPB83QF3wEyvbavtARDS6LE1hi4LzsQjrLwtc4CydcLUjCLNg"
+    }
+  },
+  "account_rotation_content": {
+    "bytes": 1024,
+    "plaintext": "{\"v\":2,\"kind\":\"account_rotation\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"c3d4e5f6-0718-4a29-8b3c-4d5e6f708192\",\"old_account_public_key\":\"ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\",\"new_account_public_key\":\"Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB\",\"generation\":2,\"old_signature\":\"wmkikwS6qcWDJQkh3LhNmfwLZdDLXbLAFH2G2FqPoXkRTRmTGs2RqEWULg2aoiKAR7hmGn8C8GxuS4k9v4qTKZQ\",\"new_signature\":\"2sAJom8D1bSfRw5Pa9yn7YmT61Ay5FgdisDxvntdgvWkdYs9ai9z5SyZ9qPibZX1bUywfHMSjBf2dUhH1jb3Gdjw\",\"wallet_address\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"wallet_signature\":\"2BavaDVRj84U8GyUXums5Yhg8SigNaBM5X1eQqq7UDC4VtwUKUEXxACbZXWDx26QGvpP4ZN7HQKJbsZcKLg9f3F1\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                       \"}"
+  },
+  "invalid_account_rotation_content": [
+    "{\"v\":2,\"kind\":\"account_rotation\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"c3d4e5f6-0718-4a29-8b3c-4d5e6f708192\",\"old_account_public_key\":\"ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\",\"new_account_public_key\":\"Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB\",\"generation\":1,\"old_signature\":\"wmkikwS6qcWDJQkh3LhNmfwLZdDLXbLAFH2G2FqPoXkRTRmTGs2RqEWULg2aoiKAR7hmGn8C8GxuS4k9v4qTKZQ\",\"new_signature\":\"2sAJom8D1bSfRw5Pa9yn7YmT61Ay5FgdisDxvntdgvWkdYs9ai9z5SyZ9qPibZX1bUywfHMSjBf2dUhH1jb3Gdjw\",\"wallet_address\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"wallet_signature\":\"2BavaDVRj84U8GyUXums5Yhg8SigNaBM5X1eQqq7UDC4VtwUKUEXxACbZXWDx26QGvpP4ZN7HQKJbsZcKLg9f3F1\"}",
+    "{\"v\":2,\"kind\":\"account_rotation\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"c3d4e5f6-0718-4a29-8b3c-4d5e6f708192\",\"old_account_public_key\":\"ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\",\"new_account_public_key\":\"Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB\",\"generation\":\"2\",\"old_signature\":\"wmkikwS6qcWDJQkh3LhNmfwLZdDLXbLAFH2G2FqPoXkRTRmTGs2RqEWULg2aoiKAR7hmGn8C8GxuS4k9v4qTKZQ\",\"new_signature\":\"2sAJom8D1bSfRw5Pa9yn7YmT61Ay5FgdisDxvntdgvWkdYs9ai9z5SyZ9qPibZX1bUywfHMSjBf2dUhH1jb3Gdjw\",\"wallet_address\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"wallet_signature\":\"2BavaDVRj84U8GyUXums5Yhg8SigNaBM5X1eQqq7UDC4VtwUKUEXxACbZXWDx26QGvpP4ZN7HQKJbsZcKLg9f3F1\"}",
+    "{\"v\":2,\"kind\":\"account_rotation\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"c3d4e5f6-0718-4a29-8b3c-4d5e6f708192\",\"old_account_public_key\":\"ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\",\"new_account_public_key\":\"Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB\",\"generation\":32768,\"old_signature\":\"wmkikwS6qcWDJQkh3LhNmfwLZdDLXbLAFH2G2FqPoXkRTRmTGs2RqEWULg2aoiKAR7hmGn8C8GxuS4k9v4qTKZQ\",\"new_signature\":\"2sAJom8D1bSfRw5Pa9yn7YmT61Ay5FgdisDxvntdgvWkdYs9ai9z5SyZ9qPibZX1bUywfHMSjBf2dUhH1jb3Gdjw\",\"wallet_address\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"wallet_signature\":\"2BavaDVRj84U8GyUXums5Yhg8SigNaBM5X1eQqq7UDC4VtwUKUEXxACbZXWDx26QGvpP4ZN7HQKJbsZcKLg9f3F1\"}",
+    "{\"v\":2,\"kind\":\"account_rotation\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"c3d4e5f6-0718-4a29-8b3c-4d5e6f708192\",\"old_account_public_key\":\"ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\",\"new_account_public_key\":\"ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\",\"generation\":2,\"old_signature\":\"wmkikwS6qcWDJQkh3LhNmfwLZdDLXbLAFH2G2FqPoXkRTRmTGs2RqEWULg2aoiKAR7hmGn8C8GxuS4k9v4qTKZQ\",\"new_signature\":\"2sAJom8D1bSfRw5Pa9yn7YmT61Ay5FgdisDxvntdgvWkdYs9ai9z5SyZ9qPibZX1bUywfHMSjBf2dUhH1jb3Gdjw\",\"wallet_address\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"wallet_signature\":\"2BavaDVRj84U8GyUXums5Yhg8SigNaBM5X1eQqq7UDC4VtwUKUEXxACbZXWDx26QGvpP4ZN7HQKJbsZcKLg9f3F1\"}",
+    "{\"v\":2,\"kind\":\"account_rotation\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"c3d4e5f6-0718-4a29-8b3c-4d5e6f708192\",\"old_account_public_key\":\"ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\",\"new_account_public_key\":\"Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB\",\"generation\":2,\"old_signature\":\"wmkikwS6qcWDJQkh3LhNmfwLZdDLXbLAFH2G2FqPoXkRTRmTGs2RqEWULg2aoiKAR7hmGn8C8GxuS4k9v4qTKZQ\",\"new_signature\":\"2sAJom8D1bSfRw5Pa9yn7YmT61Ay5FgdisDxvntdgvWkdYs9ai9z5SyZ9qPibZX1bUywfHMSjBf2dUhH1jb3Gdjw\",\"wallet_address\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"wallet_signature\":\"2BavaDVRj84U8GyUXums5Yhg8SigNaBM5X1eQqq7UDC4VtwUKUEXxACbZXWDx26QGvpP4ZN7HQKJbsZcKLg9f3F1\",\"later_field\":1}",
+    "{\"v\":2,\"kind\":\"account_rotation\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"c3d4e5f6-0718-4a29-8b3c-4d5e6f708192\",\"old_account_public_key\":\"ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\",\"new_account_public_key\":\"Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB\",\"generation\":2,\"old_signature\":\"wmkikwS6qcWDJQkh3LhNmfwLZdDLXbLAFH2G2FqPoXkRTRmTGs2RqEWULg2aoiKAR7hmGn8C8GxuS4k9v4qTKZQ\",\"new_signature\":\"2sAJom8D1bSfRw5Pa9yn7YmT61Ay5FgdisDxvntdgvWkdYs9ai9z5SyZ9qPibZX1bUywfHMSjBf2dUhH1jb3Gdjw\",\"wallet_address\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\"}",
+    "{\"v\":2,\"kind\":\"account_rotation\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"c3d4e5f6-0718-4a29-8b3c-4d5e6f708192\",\"old_account_public_key\":\"ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\",\"new_account_public_key\":\"Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB\",\"generation\":2,\"old_signature\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"new_signature\":\"2sAJom8D1bSfRw5Pa9yn7YmT61Ay5FgdisDxvntdgvWkdYs9ai9z5SyZ9qPibZX1bUywfHMSjBf2dUhH1jb3Gdjw\",\"wallet_address\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"wallet_signature\":\"2BavaDVRj84U8GyUXums5Yhg8SigNaBM5X1eQqq7UDC4VtwUKUEXxACbZXWDx26QGvpP4ZN7HQKJbsZcKLg9f3F1\"}"
+  ],
+  "safety_number": {
+    "local": {
+      "account_public_key": "ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3",
+      "curve25519_key": "FtxeeS7LCWskoKUova+Wfkkm32IIw5sINX7ieczUpk8",
+      "ed25519_key": "PF+QWtOFyBS3FzlgkkJxuI9tb1P12QNizMCmBwbYMvA"
+    },
+    "remote": {
+      "account_public_key": "2nBc6nJhT2QrRi3bS6w6EnUvtdEZaq2Qn9xbss14oJ8u",
+      "curve25519_key": "PfpL9vdZqW+BEH+0AxpEm8ajEGCk6V/r6FeYRxuNYC8",
+      "ed25519_key": "BfmJyj43XPXpjjsN3wqwjKISz8/ADvF1mphvxx5IzEU"
+    },
+    "digits": "205250347933426583675777620714423749040611691948171644720291",
+    "qr_payload": "SOMBE-SN2:205250347933426583675777620714423749040611691948171644720291"
+  }
+}

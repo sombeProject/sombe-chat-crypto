@@ -1,20 +1,29 @@
 // Compiled with kotlinc 1.7.21 (the SOMBE app's Kotlin) against the generated bindings,
 // then run on the JVM with the host library: proves the bindings work from that Kotlin.
+import org.sombe.chatcrypto.AccountRotationContent
+import org.sombe.chatcrypto.ChatAccountKey
 import org.sombe.chatcrypto.ChatCrypto
 import org.sombe.chatcrypto.ChatCryptoException
 import org.sombe.chatcrypto.Content
 import org.sombe.chatcrypto.ContentBody
 import org.sombe.chatcrypto.IdentityUpdate
+import org.sombe.chatcrypto.PinnedIdentity
+import org.sombe.chatcrypto.PinnedOlm
 import org.sombe.chatcrypto.ReceiptStatus
 import org.sombe.chatcrypto.ScanResult
+import org.sombe.chatcrypto.StatementFields
 import org.sombe.chatcrypto.TypingState
 import org.sombe.chatcrypto.VerifiedIdentity
 import org.sombe.chatcrypto.checkIdentityUpdate
 import org.sombe.chatcrypto.compareScannedSafetyCode
 import org.sombe.chatcrypto.decodeContent
+import org.sombe.chatcrypto.deriveAccountKey
 import org.sombe.chatcrypto.encodeContent
+import org.sombe.chatcrypto.proveRotation
 import org.sombe.chatcrypto.safetyNumber
+import org.sombe.chatcrypto.verifyIdentity
 import org.sombe.chatcrypto.verifyOneTimeKey
+import org.sombe.chatcrypto.verifyWalletCard
 
 fun check(condition: Boolean, what: String) {
     if (!condition) throw IllegalStateException("FAILED: $what")
@@ -141,35 +150,118 @@ fun main() {
         check(true, "following message without a session throws NoMatchingSession")
     }
 
-    // Identities as verifyIdentity returns them (the wallet signatures are checked in Rust tests).
-    fun identity(of: ChatCrypto, wallet: String, created: String) = VerifiedIdentity(
-        walletAddress = wallet,
-        curve25519Key = of.identityKeys().curve25519Key,
-        ed25519Key = of.identityKeys().ed25519Key,
-        createdAt = created,
-    )
-    val aliceId = identity(alice, "AliceWallet", "2026-10-14T18:30:01.183Z")
-    val bobId = identity(bob, "BobWallet", "2026-10-14T18:30:01.183Z")
+    // Since 0.7.0: the account key lives in the module; Kotlin sees only its public key.
+    val aliceWallet = ByteArray(32) { 42 }
+    val aliceDerived = deriveAccountKey(aliceWallet, 1u)
+    val aliceKey = aliceDerived.key
+    check(aliceKey.generation() == 1.toUShort(), "a derived key is generation 1")
+    verifyWalletCard(aliceDerived.card)
+    check(aliceDerived.card.accountPublicKey == aliceKey.publicKey(), "the wallet card names the account key")
+    val sealingKey = ByteArray(32) { 9 }
+    val sealed = aliceKey.seal(sealingKey)
+    val unsealed = ChatAccountKey.unseal(sealed, sealingKey)
+    check(unsealed.publicKey() == aliceKey.publicKey(), "seal then unseal gives the same key")
+    try {
+        ChatAccountKey.unseal(sealed, ByteArray(32) { 8 })
+        check(false, "a wrong sealing key must throw")
+    } catch (e: ChatCryptoException.InvalidSealedKey) {
+        check(true, "a wrong sealing key is InvalidSealedKey")
+    }
+    val device = "a device public key".encodeToByteArray()
+    val deviceHash = java.security.MessageDigest.getInstance("SHA-256").digest(device)
+        .joinToString("") { "%02x".format(it) }
+    val signIn = "SOMBE ChatPay sign in\naccount:${aliceKey.publicKey()}\ndevice:$deviceHash\n" +
+        "nonce:0f1e2d3c4b5a69788796a5b4c3d2e1f0\nissued:2026-11-11T09:30:00.000Z"
+    check(aliceKey.signSignIn(signIn, device).isNotEmpty(), "the sign in message is signed")
+    try {
+        aliceKey.signSignIn("$signIn\nextra:line", device)
+        check(false, "a sixth line must throw")
+    } catch (e: ChatCryptoException.RefusedToSign) {
+        check(true, "a sign in message with a sixth line is refused")
+    }
+    check(aliceKey.signMove(aliceDerived.card, device, null).isNotEmpty(), "the account move is signed")
+
+    // Identities as verifyIdentity returns them, from the server's columns.
+    fun identity(key: ChatAccountKey, of: ChatCrypto, created: String): VerifiedIdentity {
+        val signed = key.signIdentityStatement(of, created)
+        val keys = of.identityKeys()
+        return verifyIdentity(
+            StatementFields(
+                accountPublicKey = key.publicKey(),
+                curve25519Key = keys.curve25519Key,
+                ed25519Key = keys.ed25519Key,
+                createdAt = created,
+                identitySignature = signed.identitySignature,
+                accountSignature = signed.accountSignature,
+            )
+        )
+    }
+    fun pinned(id: VerifiedIdentity, wallet: String?) =
+        PinnedIdentity(id.accountPublicKey, null, wallet, PinnedOlm(id.curve25519Key, id.ed25519Key, id.createdAt))
+
+    val bobWallet = ByteArray(32) { 43 }
+    val bobDerived = deriveAccountKey(bobWallet, 1u)
+    val aliceId = identity(aliceKey, alice, "2026-10-14T18:30:01.183Z")
+    val bobId = identity(bobDerived.key, bob, "2026-10-14T18:30:01.183Z")
+    check(aliceId.accountPublicKey == aliceKey.publicKey(), "a verified identity carries its account key")
     val code = safetyNumber(aliceId, bobId)
     check(code == safetyNumber(bobId, aliceId), "both phones get the same safety number")
     check(code.digits.length == 60 && code.groups.size == 12, "60 digits in 12 groups")
+    check(code.qrPayload.startsWith("SOMBE-SN2:"), "the QR code holds a version 2 safety number")
     check(compareScannedSafetyCode(aliceId, bobId, code.qrPayload) == ScanResult.MATCH, "scanned code matches")
+    check(
+        compareScannedSafetyCode(aliceId, bobId, "SOMBE-SN1:" + "1".repeat(60)) == ScanResult.OUTDATED_CODE,
+        "a version 1 code is outdated",
+    )
     check(
         compareScannedSafetyCode(aliceId, bobId, "https://example.com") == ScanResult.NOT_A_SAFETY_CODE,
         "a foreign QR code is not a safety code",
     )
 
     val bobNewPhone = ChatCrypto.createAccount()
-    val bobLater = identity(bobNewPhone, "BobWallet", "2026-10-15T09:00:00Z")
-    check(checkIdentityUpdate(null, bobId) == IdentityUpdate.NEW, "first identity is pinned")
-    check(checkIdentityUpdate(bobId, bobLater) == IdentityUpdate.CHANGED, "a newer identity is a change")
+    val bobLater = identity(bobDerived.key, bobNewPhone, "2026-10-15T09:00:00Z")
+    check(checkIdentityUpdate(null, bobId, null) == IdentityUpdate.NEW, "first identity is pinned")
+    check(checkIdentityUpdate(pinned(bobId, null), bobLater, null) == IdentityUpdate.CHANGED, "a newer identity is a change")
     try {
-        checkIdentityUpdate(bobLater, bobId)
+        checkIdentityUpdate(pinned(bobLater, null), bobId, null)
         check(false, "an older identity must throw")
     } catch (e: ChatCryptoException.StaleIdentity) {
         check(true, "an older identity is refused")
     }
 
+    // Bob changes his account key: the proof lets Alice's phone accept it.
+    val rotation = bobDerived.key.rotate(bobWallet)
+    val bobRotated = identity(rotation.newKey, bob, "2026-10-16T09:00:00Z")
+    val proof = AccountRotationContent(
+        oldAccountPublicKey = rotation.proof.oldAccountPublicKey,
+        newAccountPublicKey = rotation.proof.newAccountPublicKey,
+        generation = rotation.proof.generation,
+        oldSignature = rotation.proof.oldSignature,
+        newSignature = rotation.proof.newSignature,
+        walletAddress = rotation.card.walletAddress,
+        walletSignature = rotation.card.walletSignature,
+    )
+    check(
+        checkIdentityUpdate(pinned(bobId, bobDerived.card.walletAddress), bobRotated, proof) == IdentityUpdate.ACCOUNT_ROTATED,
+        "a proven rotation is accepted",
+    )
+    try {
+        checkIdentityUpdate(pinned(bobId, bobDerived.card.walletAddress), bobRotated, null)
+        check(false, "another account key without proof must throw")
+    } catch (e: ChatCryptoException.AccountChanged) {
+        check(true, "another account key without proof is AccountChanged")
+    }
+    val rotationContent = content.copy(body = ContentBody.AccountRotation(proof))
+    check(decodeContent(encodeContent(rotationContent)) == rotationContent, "AccountRotation round trips")
+    check(proveRotation(bobWallet, 1u, 3u).proof.generation == 3.toUShort(), "a proof from generation 1 to 3")
+    try {
+        rotation.newKey.rotate(aliceWallet)
+        check(false, "another wallet must throw")
+    } catch (e: ChatCryptoException.WrongGeneration) {
+        check(true, "rotating with another wallet is WrongGeneration")
+    }
+
     listOf(alice, bob, restored, bobNewPhone).forEach { it.close() }
+    listOf(aliceKey, unsealed, bobDerived.key, rotation.newKey).forEach { it.close() }
     println("Kotlin ${KotlinVersion.CURRENT}: all checks passed")
 }
