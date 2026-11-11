@@ -8,7 +8,7 @@ no business logic: no networking, no storage, no payments.
 - [PROTOCOL.md](PROTOCOL.md): identity signed by the wallet, one time keys, envelope,
   content format, session rules, identity pinning, safety number.
 - [vectors/v1.json](vectors/v1.json): test vectors for every format (written by 0.4.0).
-- [vectors/v2.json](vectors/v2.json): content version 2, one vector per kind (since 0.5.0).
+- [vectors/v2.json](vectors/v2.json): content version 2, one vector per kind (since 0.5.0; wallet card and payments since 0.6.0).
 
 ## Build and test
 
@@ -56,6 +56,7 @@ val json = encodeContent(Content(2u, conversationId, envelopeId, ContentBody.Tex
 when (val body = decodeContent(read.plaintext).body) {   // UnsupportedContent: authentic, not shown
     is ContentBody.Receipt -> body.status                   // InvalidContent: kept as unreadable
     is ContentBody.Typing -> body.state
+    is ContentBody.PaymentRequest -> body.amountBaseUnits   // since 0.6.0, with the wallet card
     else -> Unit
 }
 ```

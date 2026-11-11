@@ -7,6 +7,11 @@
 //! and read receipts, and typing signals: the server no longer sees any of them. Version 1
 //! is still read, never written. The whole JSON format lives here: the app only sees
 //! `Content` and `ContentBody`.
+//!
+//! Since 0.6.0 version 2 also carries the wallet card (the wallet address a contact pays,
+//! signed by that wallet) and the payments themselves: requests, payments sent, refusals
+//! and cancellations. The server no longer sees any payment. The old `payment` kind (the
+//! comment of a card the server kept) is still read.
 
 use serde_json::{Map, Value};
 
@@ -19,6 +24,11 @@ pub const MAX_REPLY_EXCERPT_CHARS: usize = 200;
 /// A payment card's comment or note (`comment` in version 1, `body` in version 2).
 pub const MAX_COMMENT_CHARS: usize = 500;
 pub const MAX_REACTION_CHARS: usize = 16;
+/// A payment's note (since 0.6.0), counted in code points.
+pub const MAX_NOTE_CHARS: usize = 500;
+/// Bytes of an ed25519 public key or Solana address, and of a signature.
+const KEY_BYTES: usize = 32;
+const SIGNATURE_BYTES: usize = 64;
 /// The smallest padded size, in bytes; larger contents are padded to the next power of two.
 pub const MIN_PADDED_BYTES: usize = 256;
 /// What the `pad` field adds around its spaces: `,"pad":""`.
@@ -65,6 +75,39 @@ pub enum ContentBody {
     Receipt { status: ReceiptStatus, up_to_envelope_id: String, up_to_created_at: String },
     /// The sender started or stopped typing. Sent through the websocket only, never stored.
     Typing { state: TypingState },
+    /// The sender's wallet card (since 0.6.0): the text
+    /// `SOMBE wallet card v1\nwallet:<wallet_address>\naccount:<account_public_key>` and its
+    /// signature by the wallet. The module checks only the form of the three fields (base58
+    /// of 32, 32 and 64 bytes); the app checks the signature and the account key.
+    WalletCard { wallet_address: String, account_public_key: String, wallet_signature: String },
+    /// Asks the contact to send their wallet card again (since 0.6.0). No field of its own.
+    WalletCardRequest,
+    /// A payment request (since 0.6.0). `request_id` is a UUID the requester's phone drew.
+    PaymentRequest {
+        request_id: String,
+        /// 1 to `i64::MAX`, written in the JSON as a string of decimal digits.
+        amount_base_units: i64,
+        /// Base58 address of 32 bytes; native SOL is `So11111111111111111111111111111111111111112`.
+        mint: String,
+        decimals: u8,
+        /// 1 to 500 code points, not blank; `None` when there is no note.
+        note: Option<String>,
+    },
+    /// A payment the sender made on Solana (since 0.6.0). `request_id` is `None` for a
+    /// direct payment.
+    PaymentSent {
+        request_id: Option<String>,
+        /// Base58 of the 64 byte transaction signature.
+        signature: String,
+        amount_base_units: i64,
+        mint: String,
+        decimals: u8,
+        note: Option<String>,
+    },
+    /// The person a request was sent to refuses it (since 0.6.0).
+    PaymentRequestDeclined { request_id: String },
+    /// The requester withdraws a request (since 0.6.0).
+    PaymentRequestCancelled { request_id: String },
 }
 
 #[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
@@ -144,6 +187,42 @@ pub(crate) fn encode(content: Content) -> Result<String, ChatCryptoError> {
             };
             map.insert("state".into(), Value::from(state));
         }
+        ContentBody::WalletCard { wallet_address, account_public_key, wallet_signature } => {
+            map.insert(
+                "wallet_address".into(),
+                Value::from(base58(wallet_address, KEY_BYTES, "wallet_address")?),
+            );
+            map.insert(
+                "account_public_key".into(),
+                Value::from(base58(account_public_key, KEY_BYTES, "account_public_key")?),
+            );
+            map.insert(
+                "wallet_signature".into(),
+                Value::from(base58(wallet_signature, SIGNATURE_BYTES, "wallet_signature")?),
+            );
+        }
+        ContentBody::WalletCardRequest => {}
+        ContentBody::PaymentRequest { request_id, amount_base_units, mint, decimals, note } => {
+            put_uuid(&mut map, "request_id", request_id)?;
+            put_amount(&mut map, *amount_base_units, mint, *decimals)?;
+            put_note(&mut map, note)?;
+        }
+        ContentBody::PaymentSent { request_id, signature, amount_base_units, mint, decimals, note } => {
+            match request_id {
+                // Written as null, not left out: a direct payment says so.
+                None => {
+                    map.insert("request_id".into(), Value::Null);
+                }
+                Some(id) => put_uuid(&mut map, "request_id", id)?,
+            }
+            map.insert("signature".into(), Value::from(base58(signature, SIGNATURE_BYTES, "signature")?));
+            put_amount(&mut map, *amount_base_units, mint, *decimals)?;
+            put_note(&mut map, note)?;
+        }
+        ContentBody::PaymentRequestDeclined { request_id }
+        | ContentBody::PaymentRequestCancelled { request_id } => {
+            put_uuid(&mut map, "request_id", request_id)?;
+        }
     }
     pad(map)
 }
@@ -179,6 +258,11 @@ fn decode_v2(mut map: Map<String, Value>) -> Result<Content, ChatCryptoError> {
         "payment" => &["client_message_id", "body"],
         "receipt" => &["status", "up_to_envelope_id", "up_to_created_at"],
         "typing" => &["state"],
+        "wallet_card" => &["wallet_address", "account_public_key", "wallet_signature"],
+        "wallet_card_request" => &[],
+        "payment_request" => &["request_id", "amount_base_units", "mint", "decimals", "note"],
+        "payment_sent" => &["request_id", "signature", "amount_base_units", "mint", "decimals", "note"],
+        "payment_request_declined" | "payment_request_cancelled" => &["request_id"],
         _ => return Err(unsupported("unknown content kind")),
     };
     // Exactly the fields of the kind: a later addition is a version 3.
@@ -244,6 +328,43 @@ fn decode_v2(mut map: Map<String, Value>) -> Result<Content, ChatCryptoError> {
                 _ => return Err(invalid("state is start or stop")),
             },
         },
+        "wallet_card" => ContentBody::WalletCard {
+            wallet_address: base58(&required(&map, "wallet_address")?, KEY_BYTES, "wallet_address")?,
+            account_public_key: base58(
+                &required(&map, "account_public_key")?,
+                KEY_BYTES,
+                "account_public_key",
+            )?,
+            wallet_signature: base58(
+                &required(&map, "wallet_signature")?,
+                SIGNATURE_BYTES,
+                "wallet_signature",
+            )?,
+        },
+        "wallet_card_request" => ContentBody::WalletCardRequest,
+        "payment_request" => {
+            let (amount_base_units, mint, decimals) = read_amount(&map)?;
+            ContentBody::PaymentRequest {
+                request_id: id("request_id")?,
+                amount_base_units,
+                mint,
+                decimals,
+                note: read_note(&map)?,
+            }
+        }
+        "payment_sent" => {
+            let (amount_base_units, mint, decimals) = read_amount(&map)?;
+            ContentBody::PaymentSent {
+                request_id: optional(&map, "request_id")?.map(|r| uuid(&r, "request_id")).transpose()?,
+                signature: base58(&required(&map, "signature")?, SIGNATURE_BYTES, "signature")?,
+                amount_base_units,
+                mint,
+                decimals,
+                note: read_note(&map)?,
+            }
+        }
+        "payment_request_declined" => ContentBody::PaymentRequestDeclined { request_id: id("request_id")? },
+        "payment_request_cancelled" => ContentBody::PaymentRequestCancelled { request_id: id("request_id")? },
         _ => unreachable!("kinds were matched above"),
     };
     Ok(Content { version: 2, conversation_id, envelope_id, body })
@@ -360,6 +481,12 @@ fn kind_name(body: &ContentBody) -> &'static str {
         ContentBody::Payment { .. } => "payment",
         ContentBody::Receipt { .. } => "receipt",
         ContentBody::Typing { .. } => "typing",
+        ContentBody::WalletCard { .. } => "wallet_card",
+        ContentBody::WalletCardRequest => "wallet_card_request",
+        ContentBody::PaymentRequest { .. } => "payment_request",
+        ContentBody::PaymentSent { .. } => "payment_sent",
+        ContentBody::PaymentRequestDeclined { .. } => "payment_request_declined",
+        ContentBody::PaymentRequestCancelled { .. } => "payment_request_cancelled",
     }
 }
 
@@ -488,6 +615,72 @@ fn comment(body: &str, required: bool) -> Result<String, ChatCryptoError> {
         return Err(invalid("payment needs a comment of 1 to 500 characters"));
     }
     Ok(body.to_owned())
+}
+
+/// The base58 form of exactly `bytes` bytes. Base58 has one spelling per byte string, so
+/// the text is returned as given.
+fn base58(text: &str, bytes: usize, name: &str) -> Result<String, ChatCryptoError> {
+    match bs58::decode(text).into_vec() {
+        Ok(decoded) if decoded.len() == bytes => Ok(text.to_owned()),
+        Ok(_) => Err(invalid(&format!("{name} is not {bytes} bytes"))),
+        Err(_) => Err(invalid(&format!("{name} is not base58"))),
+    }
+}
+
+/// `amount_base_units`, `mint` and `decimals`, in this order, after checking them.
+fn put_amount(
+    map: &mut Map<String, Value>,
+    amount_base_units: i64,
+    mint: &str,
+    decimals: u8,
+) -> Result<(), ChatCryptoError> {
+    if amount_base_units < 1 {
+        return Err(invalid("amount_base_units is 1 to 9223372036854775807"));
+    }
+    map.insert("amount_base_units".into(), Value::from(amount_base_units.to_string()));
+    map.insert("mint".into(), Value::from(base58(mint, KEY_BYTES, "mint")?));
+    map.insert("decimals".into(), Value::from(decimals));
+    Ok(())
+}
+
+fn read_amount(map: &Map<String, Value>) -> Result<(i64, String, u8), ChatCryptoError> {
+    let amount = amount(&required(map, "amount_base_units")?)?;
+    let mint = base58(&required(map, "mint")?, KEY_BYTES, "mint")?;
+    let decimals = match map.get("decimals") {
+        Some(Value::Number(n)) => n.as_u64().and_then(|d| u8::try_from(d).ok()),
+        _ => None,
+    }
+    .ok_or_else(|| invalid("decimals is a JSON integer from 0 to 255"))?;
+    Ok((amount, mint, decimals))
+}
+
+/// Decimal digits only: no sign, no space, no leading zero, from 1 to `i64::MAX`.
+fn amount(text: &str) -> Result<i64, ChatCryptoError> {
+    let bad = || invalid("amount_base_units is a string of digits from 1 to 9223372036854775807");
+    if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) || text.starts_with('0') {
+        return Err(bad());
+    }
+    text.parse::<i64>().map_err(|_| bad())
+}
+
+/// A note is left out when there is none.
+fn put_note(map: &mut Map<String, Value>, note: &Option<String>) -> Result<(), ChatCryptoError> {
+    if let Some(note) = note {
+        map.insert("note".into(), Value::from(note_text(note)?));
+    }
+    Ok(())
+}
+
+/// Absent and `null` both read as no note; an empty or blank note is refused.
+fn read_note(map: &Map<String, Value>) -> Result<Option<String>, ChatCryptoError> {
+    optional(map, "note")?.map(|n| note_text(&n)).transpose()
+}
+
+fn note_text(note: &str) -> Result<String, ChatCryptoError> {
+    if note.trim().is_empty() || note.chars().count() > MAX_NOTE_CHARS {
+        return Err(invalid("note needs 1 to 500 characters, not blank"));
+    }
+    Ok(note.to_owned())
 }
 
 fn invalid(reason: &str) -> ChatCryptoError {

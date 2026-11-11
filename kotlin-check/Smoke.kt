@@ -69,6 +69,36 @@ fun main() {
         encodeContent(content.copy(body = bodies.last())).encodeToByteArray().size == 512,
         "a receipt is padded to 512 bytes",
     )
+    // Since 0.6.0: the wallet card and the payments travel encrypted too.
+    val sol = "So11111111111111111111111111111111111111112"
+    val signature = "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"
+    val requestId = "27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89"
+    val newKinds = listOf(
+        ContentBody.WalletCard("FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF", "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe", signature),
+        ContentBody.WalletCardRequest,
+        ContentBody.PaymentRequest(requestId, Long.MAX_VALUE, sol, 9u, "Pour le marché"),
+        ContentBody.PaymentSent(null, signature, 1_500_000_000L, sol, 9u, null),
+        ContentBody.PaymentRequestDeclined(requestId),
+        ContentBody.PaymentRequestCancelled(requestId),
+    )
+    for (body in newKinds) {
+        val each = content.copy(body = body)
+        check(decodeContent(encodeContent(each)) == each, "${body::class.simpleName} round trips")
+    }
+    check(
+        encodeContent(content.copy(body = newKinds[2])).encodeToByteArray().size == 512,
+        "a payment request is padded to 512 bytes",
+    )
+    check(
+        encodeContent(content.copy(body = newKinds[4])).encodeToByteArray().size == 256,
+        "a refusal is padded to 256 bytes",
+    )
+    try {
+        encodeContent(content.copy(body = ContentBody.PaymentRequest(requestId, 0L, sol, 9u, null)))
+        check(false, "an amount of 0 must throw")
+    } catch (e: ChatCryptoException.InvalidContent) {
+        check(true, "an amount of 0 is refused")
+    }
     try {
         encodeContent(typing.copy(envelopeId = content.envelopeId))
         check(false, "a typing signal with an envelope id must throw")

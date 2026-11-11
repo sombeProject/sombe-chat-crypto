@@ -1,4 +1,5 @@
-//! Writes vectors/v2.json (since 0.5.0): the padded version 2 content of every kind, how
+//! Writes vectors/v2.json (since 0.5.0; wallet card and payment kinds since 0.6.0): the
+//! padded version 2 content of every kind, how
 //! each version 1 kind is read, and contents that must be refused. Contents carry no
 //! randomness, so running it again gives the same file; tests/vectors.rs checks it.
 //! vectors/v1.json (identity, keys, a first message, safety number, version 1 contents)
@@ -7,10 +8,27 @@
 
 use serde_json::{json, Value};
 use sombe_chat_crypto::{decode_content, encode_content, Content, ContentBody, ReceiptStatus, TypingState};
+use vodozemac::Ed25519SecretKey;
 
 const CONVERSATION: &str = "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01";
 const TARGET: &str = "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34";
 const TEXT_ENVELOPE: &str = "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78";
+/// The test wallet of vectors/v1.json, and a test account key: never use them for anything real.
+const WALLET_SEED: [u8; 32] = [
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
+    29, 30, 31,
+];
+const ACCOUNT_SEED: [u8; 32] = [
+    32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
+    58, 59, 60, 61, 62, 63,
+];
+const REQUEST: &str = "27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89";
+/// Native SOL, as an envelope always names it.
+const SOL_MINT: &str = "So11111111111111111111111111111111111111112";
+/// USDC on mainnet.
+const USDC_MINT: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const TX_SIGNATURE: &str =
+    "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW";
 
 fn v2(envelope_id: Option<&str>, body: ContentBody) -> Content {
     Content {
@@ -123,6 +141,79 @@ fn main() {
         ),
         ("typing_start", v2(None, ContentBody::Typing { state: TypingState::Start })),
         ("typing_stop", v2(None, ContentBody::Typing { state: TypingState::Stop })),
+        ("wallet_card", v2(Some("38a5def1-cdaf-4f7b-9ebc-4a5b6c7d8e90"), wallet_card())),
+        (
+            "wallet_card_request",
+            v2(Some("49b6ef02-debf-4a8c-8fcd-5b6c7d8e9fa1"), ContentBody::WalletCardRequest),
+        ),
+        (
+            "payment_request",
+            v2(
+                Some("5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2"),
+                ContentBody::PaymentRequest {
+                    request_id: REQUEST.into(),
+                    amount_base_units: 1_500_000_000,
+                    mint: SOL_MINT.into(),
+                    decimals: 9,
+                    note: Some("Pour le marché".into()),
+                },
+            ),
+        ),
+        (
+            "payment_request_without_note",
+            v2(
+                Some("6bd80124-f0d1-4cae-8bef-7d8e9fa0b1c3"),
+                ContentBody::PaymentRequest {
+                    request_id: REQUEST.into(),
+                    amount_base_units: 9_223_372_036_854_775_807,
+                    mint: USDC_MINT.into(),
+                    decimals: 6,
+                    note: None,
+                },
+            ),
+        ),
+        (
+            "payment_sent",
+            v2(
+                Some("7ce91235-01e2-4dbf-9cf0-8e9fa0b1c2d4"),
+                ContentBody::PaymentSent {
+                    request_id: Some(REQUEST.into()),
+                    signature: TX_SIGNATURE.into(),
+                    amount_base_units: 1_500_000_000,
+                    mint: SOL_MINT.into(),
+                    decimals: 9,
+                    note: Some("Pour le marché".into()),
+                },
+            ),
+        ),
+        (
+            "payment_sent_direct",
+            v2(
+                Some("8dfa2346-12f3-4ec0-8d01-9fa0b1c2d3e5"),
+                ContentBody::PaymentSent {
+                    request_id: None,
+                    signature: TX_SIGNATURE.into(),
+                    amount_base_units: 25_000_000,
+                    mint: USDC_MINT.into(),
+                    decimals: 6,
+                    note: None,
+                },
+            ),
+        ),
+        (
+            "payment_request_declined",
+            v2(
+                Some("9e0b3457-2304-4fd1-9e12-a0b1c2d3e4f6"),
+                ContentBody::PaymentRequestDeclined { request_id: REQUEST.into() },
+            ),
+        ),
+        (
+            "payment_request_cancelled",
+            v2(
+                Some("af1c4568-3415-4ae2-8f23-b1c2d3e4f5a7"),
+                ContentBody::PaymentRequestCancelled { request_id: REQUEST.into() },
+            ),
+        ),
     ];
     let mut v2_vectors = serde_json::Map::new();
     for (name, content) in contents {
@@ -130,6 +221,12 @@ fn main() {
         assert_eq!(decode_content(plaintext.clone()).unwrap(), content);
         v2_vectors.insert(name.into(), json!({ "bytes": plaintext.len(), "plaintext": plaintext }));
     }
+    // The card text the wallet signed, so another implementation can check the signature.
+    let ContentBody::WalletCard { wallet_address, account_public_key, .. } = wallet_card() else {
+        unreachable!("a wallet card")
+    };
+    let card_text = format!("SOMBE wallet card v1\nwallet:{wallet_address}\naccount:{account_public_key}");
+    v2_vectors["wallet_card"]["signed_text"] = Value::from(card_text);
 
     // Version 1 as phones up to 0.4.0 wrote it: some ids in upper case come out in lower
     // case, and an unknown field is ignored, as 0.4.0 did.
@@ -182,10 +279,25 @@ fn main() {
         r#"{"v":2,"kind":"delete","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"d2af7e9b-6d4a-4f1b-9e5c-8a9b0c1d2e34","client_message_id":"6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67","deletes_message_id":"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34","later_field":1}"#,
         r#"{"v":2,"kind":"receipt","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"05d2abce-9a7d-4c4e-8b8f-1d2e3f4a5b67","status":"read","up_to_envelope_id":"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78","up_to_created_at":"2026-11-04T12:34:56"}"#,
         r#"{"v":2,"kind":"text","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"not-a-uuid","client_message_id":"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12","body":"x"}"#,
+        // Since 0.6.0: an amount as a JSON number, with a leading zero, zero, or above i64::MAX.
+        r#"{"v":2,"kind":"payment_request","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2","request_id":"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89","amount_base_units":1500000000,"mint":"So11111111111111111111111111111111111111112","decimals":9}"#,
+        r#"{"v":2,"kind":"payment_request","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2","request_id":"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89","amount_base_units":"01500000000","mint":"So11111111111111111111111111111111111111112","decimals":9}"#,
+        r#"{"v":2,"kind":"payment_request","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2","request_id":"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89","amount_base_units":"0","mint":"So11111111111111111111111111111111111111112","decimals":9}"#,
+        r#"{"v":2,"kind":"payment_request","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2","request_id":"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89","amount_base_units":"9223372036854775808","mint":"So11111111111111111111111111111111111111112","decimals":9}"#,
+        // A mint that is not 32 bytes, decimals above 255, a blank note, a request without its id.
+        r#"{"v":2,"kind":"payment_request","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2","request_id":"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89","amount_base_units":"1500000000","mint":"So1111111111111111111111111111111111111111","decimals":9}"#,
+        r#"{"v":2,"kind":"payment_request","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2","request_id":"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89","amount_base_units":"1500000000","mint":"So11111111111111111111111111111111111111112","decimals":256}"#,
+        r#"{"v":2,"kind":"payment_request","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2","request_id":"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89","amount_base_units":"1500000000","mint":"So11111111111111111111111111111111111111112","decimals":9,"note":"   "}"#,
+        r#"{"v":2,"kind":"payment_request","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2","amount_base_units":"1500000000","mint":"So11111111111111111111111111111111111111112","decimals":9}"#,
+        // A payment sent whose signature is not 64 bytes, a refusal with a client_message_id.
+        r#"{"v":2,"kind":"payment_sent","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"7ce91235-01e2-4dbf-9cf0-8e9fa0b1c2d4","request_id":null,"signature":"So11111111111111111111111111111111111111112","amount_base_units":"1500000000","mint":"So11111111111111111111111111111111111111112","decimals":9}"#,
+        r#"{"v":2,"kind":"payment_request_declined","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"9e0b3457-2304-4fd1-9e12-a0b1c2d3e4f6","client_message_id":"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12","request_id":"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89"}"#,
+        // A wallet card whose address is not base58 (0 is not in the alphabet).
+        r#"{"v":2,"kind":"wallet_card","conversation_id":"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01","envelope_id":"38a5def1-cdaf-4f7b-9ebc-4a5b6c7d8e90","wallet_address":"0Ae4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF","account_public_key":"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF","wallet_signature":"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"}"#,
     ];
 
     let vectors = json!({
-        "description": "SOMBE chat content test vectors, content version 2 (sombe-chat-crypto 0.5.0). Test ids only.",
+        "description": "SOMBE chat content test vectors, content version 2 (sombe-chat-crypto 0.6.0). Test ids and test keys only.",
         "v2": v2_vectors,
         "v1_read": v1_vectors,
         "unsupported_content": unsupported,
@@ -194,6 +306,17 @@ fn main() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vectors/v2.json");
     std::fs::write(&path, serde_json::to_string_pretty(&vectors).unwrap() + "\n").unwrap();
     println!("wrote {}", path.display());
+}
+
+/// The test wallet's card for the test account key, signed by the wallet.
+fn wallet_card() -> ContentBody {
+    let wallet = Ed25519SecretKey::from_slice(&WALLET_SEED);
+    let account = Ed25519SecretKey::from_slice(&ACCOUNT_SEED);
+    let wallet_address = bs58::encode(wallet.public_key().as_bytes()).into_string();
+    let account_public_key = bs58::encode(account.public_key().as_bytes()).into_string();
+    let text = format!("SOMBE wallet card v1\nwallet:{wallet_address}\naccount:{account_public_key}");
+    let wallet_signature = bs58::encode(wallet.sign(text.as_bytes()).to_bytes()).into_string();
+    ContentBody::WalletCard { wallet_address, account_public_key, wallet_signature }
 }
 
 /// The decoded content as JSON, so another implementation can compare it field by field.
@@ -222,7 +345,7 @@ pub fn describe(content: &Content) -> Value {
         ContentBody::Payment { client_message_id, body } => json!({
             "variant": "Payment", "client_message_id": client_message_id, "body": body,
         }),
-        ContentBody::Receipt { .. } | ContentBody::Typing { .. } => unreachable!("never in version 1"),
+        _ => unreachable!("never in version 1"),
     };
     json!({
         "version": content.version,
