@@ -166,7 +166,7 @@ fn v2_vectors() -> Value {
 fn version_2_contents_are_reproducible() {
     let v = v2_vectors();
     let kinds = v["v2"].as_object().unwrap();
-    assert_eq!(kinds.len(), 11);
+    assert_eq!(kinds.len(), 19);
     for (name, vector) in kinds {
         let plaintext = s(&vector["plaintext"]);
         assert_eq!(plaintext.len() as u64, vector["bytes"].as_u64().unwrap(), "{name}");
@@ -178,6 +178,36 @@ fn version_2_contents_are_reproducible() {
     assert_eq!(v["v2"]["typing_stop"]["bytes"], 256);
     assert_eq!(v["v2"]["receipt_delivered"]["bytes"], 512);
     assert_eq!(v["v2"]["receipt_read"]["bytes"], 512);
+    // Since 0.6.0: a request or a payment sent at 512 bytes, a refusal or a cancellation at
+    // 256, whatever the note when it is short.
+    for name in ["payment_request", "payment_request_without_note", "payment_sent", "payment_sent_direct"] {
+        assert_eq!(v["v2"][name]["bytes"], 512, "{name}");
+    }
+    for name in ["payment_request_declined", "payment_request_cancelled", "wallet_card_request"] {
+        assert_eq!(v["v2"][name]["bytes"], 256, "{name}");
+    }
+    assert_eq!(v["v2"]["wallet_card"]["bytes"], 512);
+}
+
+/// The card vector is signed by the test wallet of vectors/v1.json, over the exact text it
+/// gives, so the app can check its own verification against it.
+#[test]
+fn wallet_card_vector_is_signed_by_the_test_wallet() {
+    let card = &v2_vectors()["v2"]["wallet_card"];
+    let content = decode_content(s(&card["plaintext"])).unwrap();
+    let ContentBody::WalletCard { wallet_address, account_public_key, wallet_signature } = content.body
+    else {
+        panic!("a wallet card")
+    };
+    assert_eq!(wallet_address, s(&vectors()["wallet"]["address"]));
+    let text = format!("SOMBE wallet card v1\nwallet:{wallet_address}\naccount:{account_public_key}");
+    assert_eq!(text, s(&card["signed_text"]));
+    let key: [u8; 32] = bs58::decode(&wallet_address).into_vec().unwrap().try_into().unwrap();
+    let signature: [u8; 64] = bs58::decode(&wallet_signature).into_vec().unwrap().try_into().unwrap();
+    vodozemac::Ed25519PublicKey::from_slice(&key)
+        .unwrap()
+        .verify(text.as_bytes(), &vodozemac::Ed25519Signature::from_slice(&signature).unwrap())
+        .unwrap();
 }
 
 /// Each version 1 kind is read into the variant the vector names.

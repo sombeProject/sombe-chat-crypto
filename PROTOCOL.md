@@ -12,7 +12,8 @@ the content format, and the safety number two people compare. Nothing here inven
 cryptography.
 
 `vectors/v1.json` holds test vectors for every format below (written by 0.4.0), and
-`vectors/v2.json` those of content version 2 (since 0.5.0).
+`vectors/v2.json` those of content version 2 (since 0.5.0; wallet card and payment kinds
+since 0.6.0).
 
 ## Identity
 
@@ -122,6 +123,12 @@ the sending phone drew for this envelope; a `typing` never has one (it is never 
 | `payment` | `client_message_id`, `body` (the card's comment or note, 1 to 500 characters, not blank) | mailbox, with its card |
 | `receipt` | `status` (`delivered` or `read`), `up_to_envelope_id`, `up_to_created_at` | mailbox |
 | `typing` | `state` (`start` or `stop`) | websocket only |
+| `wallet_card` (since 0.6.0) | `wallet_address`, `account_public_key`, `wallet_signature` | mailbox |
+| `wallet_card_request` (since 0.6.0) | none | mailbox |
+| `payment_request` (since 0.6.0) | `request_id`, `amount_base_units`, `mint`, `decimals`, `note` (optional) | mailbox |
+| `payment_sent` (since 0.6.0) | `request_id` (`null` for a direct payment), `signature`, `amount_base_units`, `mint`, `decimals`, `note` (optional) | mailbox |
+| `payment_request_declined` (since 0.6.0) | `request_id` | mailbox |
+| `payment_request_cancelled` (since 0.6.0) | `request_id` | mailbox |
 
 Rules, all checked by the module, when written and when read:
 
@@ -137,6 +144,9 @@ Rules, all checked by the module, when written and when read:
   server gave it, for example `2026-11-04T12:34:56.789Z`. The module compares it with
   nothing.
 - `envelope_id` is required on every kind but `typing`, and forbidden on `typing`.
+- The wallet card and payment kinds (since 0.6.0) carry no `client_message_id`:
+  `envelope_id` names the envelope, and `request_id` ties a request to what follows it.
+  Their rules are in *Wallet card and payments* below.
 - An unknown `kind`, or a `v` above 2, is `UnsupportedContent`: the message is authentic
   but this phone cannot show it. It is never read as another kind. A malformed content
   of a known kind is `InvalidContent`.
@@ -164,6 +174,56 @@ base64 characters, well under the 2048 the server relays.
 
 `vectors/v2.json` holds one padded content of each kind, how each version 1 kind is
 read, and contents that must be refused (`UnsupportedContent` or `InvalidContent`).
+
+### Wallet card and payments (since 0.6.0)
+
+These six kinds are new kinds of version 2, not a version 3: `v` stays 2. A phone on 0.5.0
+reads them as `UnsupportedContent`, never as another kind. The server sees none of them:
+it no longer keeps any payment, nor the wallet address of an account.
+
+```json
+{"v":2,"kind":"payment_request","conversation_id":"…","envelope_id":"…","request_id":"…","amount_base_units":"1500000000","mint":"So11111111111111111111111111111111111111112","decimals":9,"note":"…","pad":"   …"}
+```
+
+Rules, all checked by the module, when written and when read (otherwise `InvalidContent`):
+
+- `wallet_card`: the sender's wallet card. `wallet_address` and `account_public_key` are
+  the base58 form of exactly 32 bytes, `wallet_signature` of exactly 64 bytes. The wallet
+  signed the text `SOMBE wallet card v1\nwallet:<wallet_address>\naccount:<account_public_key>`
+  (lines joined by `\n`, no final `\n`) once, and the same card is sent again as is. The
+  module checks only the form of the fields: the app checks the signature against
+  `wallet_address`, and that `account_public_key` is the contact's account key.
+- `wallet_card_request` asks the contact to send their card again. It has no field of
+  its own.
+- `request_id` is a well formed UUID, written and returned in lower case like every other
+  id. The requester's phone draws it (version 4); the module does not check the version.
+  It is required on every payment kind but `payment_sent`, where `null` (or absent) means
+  a direct payment, not tied to a request. The module writes `null` for a direct payment.
+- `amount_base_units` is a JSON string of decimal digits only, without sign, space nor
+  leading zero, from `1` to `9223372036854775807` (the largest signed 64 bit integer: the
+  app signs transfers with a `Long`). For example `"1500000000"` for 1.5 SOL. Never a JSON
+  number, never a decimal comma or point. In the `Content` record it is an `i64`.
+- `mint` is always present: the base58 form of exactly 32 bytes (a mint may be off the
+  curve). Native SOL is written `So11111111111111111111111111111111111111112`, and the
+  app then sends a native SOL transfer, never wrapped SOL.
+- `decimals` is a JSON integer from 0 to 255 (the range of an SPL mint).
+- `note` is absent, `null`, or 1 to 500 characters counted in code points, not only white
+  space. The module leaves it out when there is none; an empty note is refused.
+- `signature` is the base58 form of exactly 64 bytes (a Solana transaction signature).
+
+What the module does not check, and the app does: that the mint is one of the coins the
+app accepts for this network and that `decimals` are those of that coin (the list changes
+with the network, the module does not know it), who sent a refusal, a cancellation or a
+payment tied to a request, and that a `payment_sent` agrees with its request.
+
+Sizes, without a note: a request or a payment sent is 512 bytes, a refusal or a
+cancellation 256 bytes, a wallet card 512 bytes and its request 256 bytes. By its size the
+server can therefore tell a refusal or a cancellation from a request or a payment, without
+seeing what it says (a known leak, accepted for version 2). A long note moves the
+envelope to a larger bucket, like a long text: up to 4096 bytes for 500 emoji.
+
+The old `payment` kind (the comment of a payment card the server kept) is still read by
+0.6.0. The app no longer writes it: payments now travel as the kinds above.
 
 ### Reading version 1
 

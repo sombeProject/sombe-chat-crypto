@@ -1,5 +1,5 @@
 {
-  "description": "SOMBE chat content test vectors, content version 2 (sombe-chat-crypto 0.5.0). Test ids only.",
+  "description": "SOMBE chat content test vectors, content version 2 (sombe-chat-crypto 0.6.0). Test ids and test keys only.",
   "v2": {
     "text": {
       "bytes": 256,
@@ -44,6 +44,39 @@
     "typing_stop": {
       "bytes": 256,
       "plaintext": "{\"v\":2,\"kind\":\"typing\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"state\":\"stop\",\"pad\":\"                                                                                                                                                        \"}"
+    },
+    "wallet_card": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"wallet_card\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"38a5def1-cdaf-4f7b-9ebc-4a5b6c7d8e90\",\"wallet_address\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"account_public_key\":\"3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\",\"wallet_signature\":\"4VZ1VGJG2BYn75K7GEUaCKmmdf7b3Y3srzUpguhtiTYSbfqgJXgwNcMiwzgA6jTKrUrFyJPk8813D62U161boapv\",\"pad\":\"                                                                                                                            \"}",
+      "signed_text": "SOMBE wallet card v1\nwallet:FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe"
+    },
+    "wallet_card_request": {
+      "bytes": 256,
+      "plaintext": "{\"v\":2,\"kind\":\"wallet_card_request\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"49b6ef02-debf-4a8c-8fcd-5b6c7d8e9fa1\",\"pad\":\"                                                                                                     \"}"
+    },
+    "payment_request": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"payment_request\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"amount_base_units\":\"1500000000\",\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":9,\"note\":\"Pour le marché\",\"pad\":\"                                                                                                                                                                                         \"}"
+    },
+    "payment_request_without_note": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"payment_request\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"6bd80124-f0d1-4cae-8bef-7d8e9fa0b1c3\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"amount_base_units\":\"9223372036854775807\",\"mint\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"decimals\":6,\"pad\":\"                                                                                                                                                                                                        \"}"
+    },
+    "payment_sent": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"payment_sent\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"7ce91235-01e2-4dbf-9cf0-8e9fa0b1c2d4\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"signature\":\"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW\",\"amount_base_units\":\"1500000000\",\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":9,\"note\":\"Pour le marché\",\"pad\":\"                                                                                     \"}"
+    },
+    "payment_sent_direct": {
+      "bytes": 512,
+      "plaintext": "{\"v\":2,\"kind\":\"payment_sent\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"8dfa2346-12f3-4ec0-8d01-9fa0b1c2d3e5\",\"request_id\":null,\"signature\":\"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW\",\"amount_base_units\":\"25000000\",\"mint\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"decimals\":6,\"pad\":\"                                                                                                                                                 \"}"
+    },
+    "payment_request_declined": {
+      "bytes": 256,
+      "plaintext": "{\"v\":2,\"kind\":\"payment_request_declined\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"9e0b3457-2304-4fd1-9e12-a0b1c2d3e4f6\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"pad\":\"                                            \"}"
+    },
+    "payment_request_cancelled": {
+      "bytes": 256,
+      "plaintext": "{\"v\":2,\"kind\":\"payment_request_cancelled\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"af1c4568-3415-4ae2-8f23-b1c2d3e4f5a7\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"pad\":\"                                           \"}"
     }
   },
   "v1_read": {
@@ -153,6 +186,17 @@
     "{\"v\":2,\"kind\":\"receipt\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"status\":\"read\",\"up_to_envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"up_to_created_at\":\"2026-11-04T12:34:56Z\"}",
     "{\"v\":2,\"kind\":\"delete\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"d2af7e9b-6d4a-4f1b-9e5c-8a9b0c1d2e34\",\"client_message_id\":\"6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67\",\"deletes_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"later_field\":1}",
     "{\"v\":2,\"kind\":\"receipt\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"05d2abce-9a7d-4c4e-8b8f-1d2e3f4a5b67\",\"status\":\"read\",\"up_to_envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"up_to_created_at\":\"2026-11-04T12:34:56\"}",
-    "{\"v\":2,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"not-a-uuid\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"x\"}"
+    "{\"v\":2,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"not-a-uuid\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"x\"}",
+    "{\"v\":2,\"kind\":\"payment_request\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"amount_base_units\":1500000000,\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":9}",
+    "{\"v\":2,\"kind\":\"payment_request\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"amount_base_units\":\"01500000000\",\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":9}",
+    "{\"v\":2,\"kind\":\"payment_request\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"amount_base_units\":\"0\",\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":9}",
+    "{\"v\":2,\"kind\":\"payment_request\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"amount_base_units\":\"9223372036854775808\",\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":9}",
+    "{\"v\":2,\"kind\":\"payment_request\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"amount_base_units\":\"1500000000\",\"mint\":\"So1111111111111111111111111111111111111111\",\"decimals\":9}",
+    "{\"v\":2,\"kind\":\"payment_request\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"amount_base_units\":\"1500000000\",\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":256}",
+    "{\"v\":2,\"kind\":\"payment_request\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"amount_base_units\":\"1500000000\",\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":9,\"note\":\"   \"}",
+    "{\"v\":2,\"kind\":\"payment_request\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"5ac7f013-efc0-4b9d-9ade-6c7d8e9fa0b2\",\"amount_base_units\":\"1500000000\",\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":9}",
+    "{\"v\":2,\"kind\":\"payment_sent\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"7ce91235-01e2-4dbf-9cf0-8e9fa0b1c2d4\",\"request_id\":null,\"signature\":\"So11111111111111111111111111111111111111112\",\"amount_base_units\":\"1500000000\",\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":9}",
+    "{\"v\":2,\"kind\":\"payment_request_declined\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"9e0b3457-2304-4fd1-9e12-a0b1c2d3e4f6\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\"}",
+    "{\"v\":2,\"kind\":\"wallet_card\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"38a5def1-cdaf-4f7b-9ebc-4a5b6c7d8e90\",\"wallet_address\":\"0Ae4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"account_public_key\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"wallet_signature\":\"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW\"}"
   ]
 }
