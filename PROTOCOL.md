@@ -62,6 +62,16 @@ wrong sealing key, a changed or truncated text, or another version are all
 `InvalidSealedKey`, with no more detail. The sealing key is 32 bytes (`InvalidKey`
 otherwise); the app keeps it apart, sealed by the Android Keystore.
 
+Vector (also in `vectors/v3.json`, test values only):
+
+```
+sealing key  5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a
+nonce        000102030405060708090a0b0c0d0e0f1011121314151617
+generation   1
+seed         2a79a28bc80a3bdec9d8d576d656135496132b817f5188c19782e06d7a887c62
+sealed       AQABAgMEBQYHCAkKCwwNDg8QERITFBUWFyvTqAiQaQoI3kjDjS1mXVz+dlOV6PniGwa0u9LOD0xu//bNm6jWbHXPGvOlH9cWbR9L
+```
+
 **The four texts it signs.** The account key signs only these texts, each recognized by
 its first line, so no text of one format can pass for another. Lines are separated by a
 single `\n`, with no final newline, in UTF-8.
@@ -100,6 +110,16 @@ identity:<the identity id as a lower case UUID, or ->
 `sign_move(card, device_public_key_der, identity_id)` first checks the card (below) and
 that it names this account key (`RefusedToSign` otherwise). An identity id that is not a
 lower case UUID is `InvalidStatement`.
+
+The card fingerprint of `vectors/v3.json` (test values only): the text
+
+```
+SOMBE wallet card v1
+wallet:FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF
+account:ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3
+```
+
+gives `card:5cea19842b9c66cce702d71fd63ed461a6ba594e720855fbd38cb42b39bd4dd9`.
 
 **The wallet card.** The wallet vouches for the account key once, with the text
 
