@@ -243,11 +243,14 @@ fn a_session_stored_by_0_7_0_still_opens_and_is_bound_when_stored_again() {
 #[test]
 fn a_base58_field_too_long_is_refused_without_being_decoded() {
     let json = format!(
-        "{{\"v\":2,\"kind\":\"wallet_card\",\"conversation_id\":\"11111111-1111-1111-1111-111111111111\",\"envelope_id\":\"22222222-2222-2222-2222-222222222222\",\"wallet_address\":\"{}\",\"account_public_key\":\"x\",\"wallet_signature\":\"x\"}}",
+        "{{\"v\":3,\"kind\":\"wallet_card\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"22222222-2222-2222-2222-222222222222\",\"wallet_address\":\"{}\",\"account_public_key\":\"x\",\"wallet_signature\":\"x\"}}",
         "z".repeat(200_000)
     );
     let started = Instant::now();
-    assert!(matches!(decode_content(json), Err(ChatCryptoError::InvalidContent { .. })));
+    assert!(matches!(
+        decode_content(json, common::mailbox("22222222-2222-2222-2222-222222222222")),
+        Err(ChatCryptoError::InvalidContent { .. })
+    ));
     // Decoding 200 000 characters takes many seconds; refusing them by length does not.
     assert!(started.elapsed().as_millis() < 500);
     let long_key = "1".repeat(45);

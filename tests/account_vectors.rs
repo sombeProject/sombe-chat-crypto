@@ -1,6 +1,8 @@
 //! Checks vectors/v3.json (the account key, since 0.7.0), so a change to one of its
 //! formats cannot slip in unnoticed. The ChatPay server replays the same file.
 
+mod common;
+
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sombe_chat_crypto::*;
@@ -147,13 +149,17 @@ fn account_rotation_contents() {
     let v = vectors();
     let plaintext = s(&v["account_rotation_content"]["plaintext"]);
     assert_eq!(plaintext.len() as u64, v["account_rotation_content"]["bytes"].as_u64().unwrap());
-    let content = decode_content(plaintext.clone()).unwrap();
-    assert_eq!(encode_content(content.clone()).unwrap(), plaintext);
+    // A version 2 content of 0.7.0, read only since 0.8.0.
+    let content = decode_content(plaintext.clone(), common::bound_to(&plaintext)).unwrap();
+    assert_eq!(content.version, 2);
     let ContentBody::AccountRotation { rotation } = content.body else { panic!("an account rotation") };
     assert_eq!(rotation.new_account_public_key, s(&v["rotation"]["new_account_public_key"]));
     for invalid in v["invalid_account_rotation_content"].as_array().unwrap() {
         assert!(
-            matches!(decode_content(s(invalid)), Err(ChatCryptoError::InvalidContent { .. })),
+            matches!(
+                decode_content(s(invalid), common::bound_to(&s(invalid))),
+                Err(ChatCryptoError::InvalidContent { .. })
+            ),
             "{invalid}"
         );
     }

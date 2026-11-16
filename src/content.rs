@@ -15,14 +15,22 @@
 //!
 //! Since 0.7.0 version 2 also carries `account_rotation`: the proof that a contact handed
 //! their account key over to a new one, with the new key's wallet card.
+//!
+//! Since 0.8.0 the module writes only version 3. The server keeps no conversation any
+//! more, so `conversation_id` gives way to the sender's and the recipient's account ids,
+//! as Matrix writes `sender` and `recipient` inside an Olm payload. The module checks them
+//! against what the app knows of the element (`ContentBinding`), with the channel and the
+//! envelope id, and refuses a mismatch as `UnboundContent`. Version 3 also carries the
+//! contact request, its acceptance and its cancellation. Versions 1 and 2 are read only for
+//! an element the app vouches for with the old conversation id of that contact.
 
 use serde_json::{Map, Value};
 
 use crate::account::{max_base58_chars, AccountRotationContent, LAST_GENERATION};
 use crate::ChatCryptoError;
 
-/// The only version `encode_content` writes.
-pub const CONTENT_VERSION: u8 = 2;
+/// The only version `encode_content` writes (3 since 0.8.0).
+pub const CONTENT_VERSION: u8 = 3;
 pub const MAX_BODY_CHARS: usize = 4000;
 pub const MAX_REPLY_EXCERPT_CHARS: usize = 200;
 /// A payment card's comment or note (`comment` in version 1, `body` in version 2).
@@ -38,19 +46,61 @@ pub const MIN_PADDED_BYTES: usize = 256;
 /// What the `pad` field adds around its spaces: `,"pad":""`.
 const PAD_FIELD_BYTES: usize = 9;
 /// The fields every version 2 content may carry, whatever its kind.
-const COMMON_FIELDS: [&str; 4] = ["v", "kind", "conversation_id", "envelope_id"];
+const COMMON_FIELDS_V2: [&str; 4] = ["v", "kind", "conversation_id", "envelope_id"];
+/// The fields every version 3 content may carry, whatever its kind (since 0.8.0).
+const COMMON_FIELDS_V3: [&str; 5] = ["v", "kind", "sender_account_id", "recipient_account_id", "envelope_id"];
+/// An alias attestation text is at most this long (since 0.8.0).
+pub const MAX_ATTESTATION_BYTES: usize = 512;
 
-/// One decrypted content, whatever its version.
+/// What `encode_content` writes (since 0.8.0): a version 3 content from one account to
+/// another. Every id is a UUID, written in lower case.
 #[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
-pub struct Content {
-    /// 1 or 2, as read by `decode_content`; `encode_content` writes only 2.
-    pub version: u8,
-    /// Lower case UUID.
-    pub conversation_id: String,
-    /// The envelope id this content was sealed for, lower case. Absent only in a version 1
-    /// content and in a `Typing` (which is never stored); required otherwise.
+pub struct OutgoingContent {
+    /// My account id.
+    pub sender_account_id: String,
+    /// The account this content is for.
+    pub recipient_account_id: String,
+    /// The envelope id this content is sealed for. Absent only in a `Typing`, required
+    /// otherwise.
     pub envelope_id: Option<String>,
     pub body: ContentBody,
+}
+
+/// One decrypted content that `decode_content` bound to its element.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct Content {
+    /// 1, 2 or 3. 1 and 2 only for an element the app vouched for with its old
+    /// conversation id.
+    pub version: u8,
+    /// The envelope id, lower case: the element's. Absent in a version 1 content and in a
+    /// `Typing`.
+    pub envelope_id: Option<String>,
+    pub body: ContentBody,
+}
+
+/// How a content reached the phone.
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContentChannel {
+    /// The mailbox: every kind but `typing`.
+    Mailbox,
+    /// The websocket: `typing` only.
+    Websocket,
+}
+
+/// What the app knows of the element a content came with (since 0.8.0). Every id is a
+/// lower case UUID; any other spelling is `UnboundContent`.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct ContentBinding {
+    pub channel: ContentChannel,
+    /// The mailbox element's `id`: required on the mailbox, absent on the websocket.
+    pub envelope_id: Option<String>,
+    /// The element's `sender_account_id`, which chose the session.
+    pub sender_account_id: String,
+    /// My account id.
+    pub my_account_id: String,
+    /// The old server conversation id kept for this contact, given only for an element
+    /// deposited before the switch. Without it, versions 1 and 2 are refused.
+    pub legacy_conversation_id: Option<String>,
 }
 
 /// What the content says, one variant per kind. Every id is a lower case UUID; a target
@@ -116,6 +166,15 @@ pub enum ContentBody {
     /// key's wallet card. Not urgent, not shown, never notified. The module checks the form
     /// of every field here; `check_identity_update` checks the signatures.
     AccountRotation { rotation: AccountRotationContent },
+    /// Asks to become a contact (since 0.8.0, version 3 only), with the sender's alias
+    /// attestation. The module checks only its form; `verify_alias_attestation` gives the
+    /// alias. The request id is this content's envelope id.
+    ContactRequest { attestation: String, attestation_signature: String },
+    /// Accepts the request whose envelope id is `request_id` (since 0.8.0), with the
+    /// accepting account's attestation.
+    ContactAccept { request_id: String, attestation: String, attestation_signature: String },
+    /// Withdraws the request whose envelope id is `request_id` (since 0.8.0).
+    ContactCancel { request_id: String },
 }
 
 /// The fields of `account_rotation`, in the order PROTOCOL.md gives.
@@ -141,14 +200,12 @@ pub enum TypingState {
     Stop,
 }
 
-pub(crate) fn encode(content: Content) -> Result<String, ChatCryptoError> {
-    if content.version != CONTENT_VERSION {
-        return Err(invalid("only version 2 is written"));
-    }
+pub(crate) fn encode(content: OutgoingContent) -> Result<String, ChatCryptoError> {
     let mut map = Map::new();
     map.insert("v".into(), Value::from(CONTENT_VERSION));
     map.insert("kind".into(), Value::from(kind_name(&content.body)));
-    put_uuid(&mut map, "conversation_id", &content.conversation_id)?;
+    put_uuid(&mut map, "sender_account_id", &content.sender_account_id)?;
+    put_uuid(&mut map, "recipient_account_id", &content.recipient_account_id)?;
     match (&content.body, &content.envelope_id) {
         (ContentBody::Typing { .. }, None) => {}
         (ContentBody::Typing { .. }, Some(_)) => {
@@ -252,11 +309,34 @@ pub(crate) fn encode(content: Content) -> Result<String, ChatCryptoError> {
             map.insert("wallet_address".into(), Value::from(rotation.wallet_address));
             map.insert("wallet_signature".into(), Value::from(rotation.wallet_signature));
         }
+        ContentBody::ContactRequest { attestation, attestation_signature } => {
+            put_attestation(&mut map, attestation, attestation_signature)?;
+        }
+        ContentBody::ContactAccept { request_id, attestation, attestation_signature } => {
+            put_uuid(&mut map, "request_id", request_id)?;
+            put_attestation(&mut map, attestation, attestation_signature)?;
+        }
+        ContentBody::ContactCancel { request_id } => put_uuid(&mut map, "request_id", request_id)?,
     }
     pad(map)
 }
 
-pub(crate) fn decode(json: &str) -> Result<Content, ChatCryptoError> {
+/// A content as read, before it is bound to its element.
+struct Decoded {
+    version: u8,
+    conversation_id: Option<String>,
+    sender_account_id: Option<String>,
+    recipient_account_id: Option<String>,
+    envelope_id: Option<String>,
+    body: ContentBody,
+}
+
+pub(crate) fn decode(json: &str, binding: &ContentBinding) -> Result<Content, ChatCryptoError> {
+    let decoded = read(json)?;
+    bind(decoded, binding).ok_or(ChatCryptoError::UnboundContent)
+}
+
+fn read(json: &str) -> Result<Decoded, ChatCryptoError> {
     let value: Value = serde_json::from_str(json).map_err(|e| invalid(&e.to_string()))?;
     let Value::Object(map) = value else {
         return Err(invalid("content is not a JSON object"));
@@ -267,13 +347,64 @@ pub(crate) fn decode(json: &str) -> Result<Content, ChatCryptoError> {
     };
     match version {
         1 => decode_v1(&map),
-        2 => decode_v2(map),
+        2 => decode_v2_v3(map, 2),
+        3 => decode_v2_v3(map, 3),
         0 => Err(invalid("v is not a version number")),
-        _ => Err(unsupported("content version is newer than 2")),
+        _ => Err(unsupported("content version is newer than 3")),
     }
 }
 
-fn decode_v2(mut map: Map<String, Value>) -> Result<Content, ChatCryptoError> {
+/// The content belongs to this element: right channel, same envelope id, and for version 3
+/// the element's sender and me; for versions 1 and 2 the old conversation id of this contact.
+fn bind(decoded: Decoded, binding: &ContentBinding) -> Option<Content> {
+    let ids_ok = is_lower_uuid(&binding.sender_account_id)
+        && is_lower_uuid(&binding.my_account_id)
+        && binding.envelope_id.as_deref().is_none_or(is_lower_uuid)
+        && binding.legacy_conversation_id.as_deref().is_none_or(is_lower_uuid);
+    if !ids_ok {
+        return None;
+    }
+    let typing = matches!(decoded.body, ContentBody::Typing { .. });
+    match binding.channel {
+        ContentChannel::Websocket if !typing || binding.envelope_id.is_some() => return None,
+        ContentChannel::Mailbox if typing || binding.envelope_id.is_none() => return None,
+        _ => {}
+    }
+    if binding.channel == ContentChannel::Mailbox
+        && decoded.version >= 2
+        && decoded.envelope_id != binding.envelope_id
+    {
+        return None;
+    }
+    let linked = match decoded.version {
+        3 => {
+            decoded.sender_account_id.as_deref() == Some(binding.sender_account_id.as_str())
+                && decoded.recipient_account_id.as_deref() == Some(binding.my_account_id.as_str())
+        }
+        // Legacy contents were never typing on the websocket of a 0.8.0 phone.
+        _ => {
+            !typing
+                && decoded.conversation_id.is_some()
+                && decoded.conversation_id == binding.legacy_conversation_id
+        }
+    };
+    linked.then_some(Content {
+        version: decoded.version,
+        envelope_id: decoded.envelope_id,
+        body: decoded.body,
+    })
+}
+
+/// A UUID written 8-4-4-4-12 in lower case hexadecimal, the one spelling version 3 reads.
+fn is_lower_uuid(id: &str) -> bool {
+    let groups: Vec<&str> = id.split('-').collect();
+    groups.len() == 5
+        && groups.iter().zip([8, 4, 4, 4, 12]).all(|(group, len)| {
+            group.len() == len && group.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        })
+}
+
+fn decode_v2_v3(mut map: Map<String, Value>, version: u8) -> Result<Decoded, ChatCryptoError> {
     let kind = match map.get("kind") {
         Some(Value::String(kind)) => kind.clone(),
         _ => return Err(invalid("kind is missing")),
@@ -293,17 +424,35 @@ fn decode_v2(mut map: Map<String, Value>) -> Result<Content, ChatCryptoError> {
         "payment_sent" => &["request_id", "signature", "amount_base_units", "mint", "decimals", "note"],
         "payment_request_declined" | "payment_request_cancelled" => &["request_id"],
         "account_rotation" => &ROTATION_FIELDS,
+        "contact_request" if version >= 3 => &["attestation", "attestation_signature"],
+        "contact_accept" if version >= 3 => &["request_id", "attestation", "attestation_signature"],
+        "contact_cancel" if version >= 3 => &["request_id"],
         _ => return Err(unsupported("unknown content kind")),
     };
-    // Exactly the fields of the kind: a later addition is a version 3.
+    // Exactly the fields of the kind: a later addition is a new version.
     map.remove("pad");
-    if let Some(unknown) =
-        map.keys().find(|k| !COMMON_FIELDS.contains(&k.as_str()) && !own.contains(&k.as_str()))
-    {
+    let common: &[&str] = if version == 3 { &COMMON_FIELDS_V3 } else { &COMMON_FIELDS_V2 };
+    if let Some(unknown) = map.keys().find(|k| !common.contains(&k.as_str()) && !own.contains(&k.as_str())) {
         return Err(invalid(&format!("unknown field {unknown}")));
     }
+    // Version 3 reads each id in its one spelling, lower case; version 2 as it always did.
+    let uuid = |id: &str, name: &str| -> Result<String, ChatCryptoError> {
+        let read = uuid(id, name)?;
+        if version == 3 && read != id {
+            return Err(invalid(&format!("{name} is not lower case")));
+        }
+        Ok(read)
+    };
 
-    let conversation_id = uuid(&required(&map, "conversation_id")?, "conversation_id")?;
+    let (conversation_id, sender_account_id, recipient_account_id) = if version == 3 {
+        (
+            None,
+            Some(uuid(&required(&map, "sender_account_id")?, "sender_account_id")?),
+            Some(uuid(&required(&map, "recipient_account_id")?, "recipient_account_id")?),
+        )
+    } else {
+        (Some(uuid(&required(&map, "conversation_id")?, "conversation_id")?), None, None)
+    };
     let envelope_id = match (kind.as_str(), optional(&map, "envelope_id")?) {
         ("typing", None) => None,
         ("typing", Some(_)) => return Err(invalid("a typing signal carries no envelope_id")),
@@ -416,14 +565,24 @@ fn decode_v2(mut map: Map<String, Value>) -> Result<Content, ChatCryptoError> {
                 })?,
             }
         }
+        "contact_request" => ContentBody::ContactRequest {
+            attestation: attestation(&required(&map, "attestation")?)?,
+            attestation_signature: canonical_owned(&required(&map, "attestation_signature")?)?,
+        },
+        "contact_accept" => ContentBody::ContactAccept {
+            request_id: id("request_id")?,
+            attestation: attestation(&required(&map, "attestation")?)?,
+            attestation_signature: canonical_owned(&required(&map, "attestation_signature")?)?,
+        },
+        "contact_cancel" => ContentBody::ContactCancel { request_id: id("request_id")? },
         _ => unreachable!("kinds were matched above"),
     };
-    Ok(Content { version: 2, conversation_id, envelope_id, body })
+    Ok(Decoded { version, conversation_id, sender_account_id, recipient_account_id, envelope_id, body })
 }
 
 /// Version 1 is read with the rules of 0.4.0: unknown fields are ignored, ids are only
 /// checked to be present (then returned in lower case), and each kind keeps its own fields.
-fn decode_v1(map: &Map<String, Value>) -> Result<Content, ChatCryptoError> {
+fn decode_v1(map: &Map<String, Value>) -> Result<Decoded, ChatCryptoError> {
     let kind = match map.get("kind") {
         Some(Value::String(kind)) => kind.clone(),
         _ => return Err(invalid("kind is missing")),
@@ -519,7 +678,14 @@ fn decode_v1(map: &Map<String, Value>) -> Result<Content, ChatCryptoError> {
         }
         _ => unreachable!("kinds were matched above"),
     };
-    Ok(Content { version: 1, conversation_id, envelope_id: None, body })
+    Ok(Decoded {
+        version: 1,
+        conversation_id: Some(conversation_id),
+        sender_account_id: None,
+        recipient_account_id: None,
+        envelope_id: None,
+        body,
+    })
 }
 
 fn kind_name(body: &ContentBody) -> &'static str {
@@ -539,6 +705,9 @@ fn kind_name(body: &ContentBody) -> &'static str {
         ContentBody::PaymentRequestDeclined { .. } => "payment_request_declined",
         ContentBody::PaymentRequestCancelled { .. } => "payment_request_cancelled",
         ContentBody::AccountRotation { .. } => "account_rotation",
+        ContentBody::ContactRequest { .. } => "contact_request",
+        ContentBody::ContactAccept { .. } => "contact_accept",
+        ContentBody::ContactCancel { .. } => "contact_cancel",
     }
 }
 
@@ -566,6 +735,27 @@ fn canonical(text: &str, bytes: usize, name: &str) -> Result<(), ChatCryptoError
     if bs58::encode(decoded).into_string() != text {
         return Err(invalid(&format!("{name} is not canonical base58")));
     }
+    Ok(())
+}
+
+/// An alias attestation text as carried: 1 to 512 bytes. Its rules are checked by
+/// `verify_alias_attestation`, never here.
+fn attestation(text: &str) -> Result<String, ChatCryptoError> {
+    if text.is_empty() || text.len() > MAX_ATTESTATION_BYTES {
+        return Err(invalid("attestation is 1 to 512 bytes"));
+    }
+    Ok(text.to_owned())
+}
+
+/// The attestation's signature: canonical base58 of 64 bytes.
+fn canonical_owned(text: &str) -> Result<String, ChatCryptoError> {
+    canonical(text, SIGNATURE_BYTES, "attestation_signature")?;
+    Ok(text.to_owned())
+}
+
+fn put_attestation(map: &mut Map<String, Value>, text: &str, signature: &str) -> Result<(), ChatCryptoError> {
+    map.insert("attestation".into(), Value::from(attestation(text)?));
+    map.insert("attestation_signature".into(), Value::from(canonical_owned(signature)?));
     Ok(())
 }
 
