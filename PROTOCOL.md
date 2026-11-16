@@ -598,6 +598,14 @@ is verified is stored only on the phone that verified it, never sent to the serv
   for each contact, which confirms a list of contacts it already knows.
 - The safety number v2 no longer covers the wallet address: only the wallet card vouches
   for it.
+- The generation of a rotation is stated by the two account keys, not by the wallet: the
+  wallet card does not carry it. Whoever holds two account keys of the same wallet (without
+  the wallet key) can therefore sign a proof between them with any generation: one at 32767,
+  after which that contact refuses every later rotation until the safety codes are compared
+  again, or one that goes back to the earlier key. Someone who holds only a key already
+  left can do neither, since the proof must be signed by the pinned key. A known limit,
+  accepted: it reads no message and moves no payment, and closing it needs a wallet card
+  that carries the generation.
 - The wallet seed passes through the app's memory (the JVM) when the account key is
   derived or rotated; it is already there for Solana. The module erases its own copies,
   not the app's, nor the buffer UniFFI copies the call's bytes into on the way in.
