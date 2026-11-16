@@ -35,13 +35,21 @@ pub fn device() -> std::sync::Arc<ChatCrypto> {
     ChatCrypto::create_account()
 }
 
-/// The test sender and recipient of a version 3 content (since 0.8.0).
+/// The test sender and recipient of a version 4 content.
 #[allow(dead_code)]
 pub const SENDER: &str = "a1a1a1a1-0000-4000-8000-0000000000a1";
 #[allow(dead_code)]
 pub const RECIPIENT: &str = "b2b2b2b2-0000-4000-8000-0000000000b2";
+/// The ed25519 keys of their test identities (since 0.8.1): the public keys of the seeds
+/// `[0xa1; 32]`, `[0xb2; 32]` and, for a stranger, `[0xc3; 32]`.
+#[allow(dead_code)]
+pub const SENDER_KEY: &str = "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU";
+#[allow(dead_code)]
+pub const RECIPIENT_KEY: &str = "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc";
+#[allow(dead_code)]
+pub const STRANGER_KEY: &str = "1AS8RFZa7buJkVDlsLOzK5RBvwy3iEwzEw2o28J90s8";
 
-/// A version 3 content from `SENDER` to `RECIPIENT`.
+/// A version 4 content from `SENDER` to `RECIPIENT`.
 #[allow(dead_code)]
 pub fn out(
     envelope_id: Option<&str>,
@@ -49,7 +57,9 @@ pub fn out(
 ) -> sombe_chat_crypto::OutgoingContent {
     sombe_chat_crypto::OutgoingContent {
         sender_account_id: SENDER.into(),
+        sender_ed25519_key: SENDER_KEY.into(),
         recipient_account_id: RECIPIENT.into(),
+        recipient_ed25519_key: RECIPIENT_KEY.into(),
         envelope_id: envelope_id.map(str::to_owned),
         body,
     }
@@ -62,7 +72,9 @@ pub fn mailbox(envelope_id: &str) -> sombe_chat_crypto::ContentBinding {
         channel: sombe_chat_crypto::ContentChannel::Mailbox,
         envelope_id: Some(envelope_id.to_lowercase()),
         sender_account_id: SENDER.into(),
+        sender_ed25519_key: SENDER_KEY.into(),
         my_account_id: RECIPIENT.into(),
+        my_ed25519_key: RECIPIENT_KEY.into(),
         legacy_conversation_id: None,
     }
 }
@@ -101,7 +113,9 @@ pub fn bound_to(json: &str) -> sombe_chat_crypto::ContentBinding {
         },
         envelope_id: (!typing).then(|| lower("envelope_id", "00000000-0000-4000-8000-0000000000e0")),
         sender_account_id: SENDER.into(),
+        sender_ed25519_key: SENDER_KEY.into(),
         my_account_id: RECIPIENT.into(),
+        my_ed25519_key: RECIPIENT_KEY.into(),
         legacy_conversation_id: Some(lower("conversation_id", "00000000-0000-4000-8000-000000000000")),
     }
 }

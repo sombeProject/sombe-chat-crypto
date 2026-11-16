@@ -1,0 +1,296 @@
+{
+  "description": "SOMBE test vectors of sombe-chat-crypto 0.8.1: content version 4 with its binding (content_v4: bound, unbound, legacy_read, version_3_refused). A content names the account ids and the ed25519 identity keys of its sender and its recipient; decode_content refuses any that differs from the binding. Test seeds and test keys only: never use them for anything real. Identity keys are Ed25519 public keys, base64 without padding.",
+  "identity_keys": {
+    "sender": {
+      "seed_hex": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "ed25519": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU"
+    },
+    "recipient": {
+      "seed_hex": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+      "ed25519": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc"
+    },
+    "stranger": {
+      "seed_hex": "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+      "ed25519": "1AS8RFZa7buJkVDlsLOzK5RBvwy3iEwzEw2o28J90s8"
+    }
+  },
+  "content_v4": {
+    "bound": {
+      "text": {
+        "bytes": 1024,
+        "plaintext": "{\"v\":4,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      "typing_start": {
+        "bytes": 512,
+        "plaintext": "{\"v\":4,\"kind\":\"typing\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"state\":\"start\",\"pad\":\"                                                                                                                                                                                                                      \"}",
+        "binding": {
+          "channel": "websocket",
+          "envelope_id": null,
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      "receipt_read": {
+        "bytes": 512,
+        "plaintext": "{\"v\":4,\"kind\":\"receipt\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"status\":\"read\",\"up_to_envelope_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"up_to_created_at\":\"2026-11-16T12:34:56.789Z\",\"pad\":\"                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      "payment_request": {
+        "bytes": 1024,
+        "plaintext": "{\"v\":4,\"kind\":\"payment_request\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"amount_base_units\":\"1500000000\",\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":9,\"note\":\"Pour le marché\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      "account_rotation": {
+        "bytes": 1024,
+        "plaintext": "{\"v\":4,\"kind\":\"account_rotation\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"old_account_public_key\":\"ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\",\"new_account_public_key\":\"Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB\",\"generation\":2,\"old_signature\":\"wmkikwS6qcWDJQkh3LhNmfwLZdDLXbLAFH2G2FqPoXkRTRmTGs2RqEWULg2aoiKAR7hmGn8C8GxuS4k9v4qTKZQ\",\"new_signature\":\"2sAJom8D1bSfRw5Pa9yn7YmT61Ay5FgdisDxvntdgvWkdYs9ai9z5SyZ9qPibZX1bUywfHMSjBf2dUhH1jb3Gdjw\",\"wallet_address\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"wallet_signature\":\"2BavaDVRj84U8GyUXums5Yhg8SigNaBM5X1eQqq7UDC4VtwUKUEXxACbZXWDx26QGvpP4ZN7HQKJbsZcKLg9f3F1\",\"pad\":\"                                                                                                                                      \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      "contact_request": {
+        "bytes": 1024,
+        "plaintext": "{\"v\":4,\"kind\":\"contact_request\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"attestation\":\"SOMBE alias attestation v1\\nkid:t1\\nalias:alice_01\\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\\nexpires:1794916800\",\"attestation_signature\":\"5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      "contact_accept": {
+        "bytes": 1024,
+        "plaintext": "{\"v\":4,\"kind\":\"contact_accept\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"attestation\":\"SOMBE alias attestation v1\\nkid:t1\\nalias:alice_01\\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\\nexpires:1794916800\",\"attestation_signature\":\"5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                    \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      "contact_cancel": {
+        "bytes": 512,
+        "plaintext": "{\"v\":4,\"kind\":\"contact_cancel\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"pad\":\"                                                                                                                     \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      }
+    },
+    "unbound": [
+      {
+        "name": "sent again by the server to another recipient",
+        "plaintext": "{\"v\":4,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "c3c3c3c3-0000-4000-8000-0000000000c3",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "presented as coming from another sender",
+        "plaintext": "{\"v\":4,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "c3c3c3c3-0000-4000-8000-0000000000c3",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "the same account ids, but the sender's verified identity has another key",
+        "plaintext": "{\"v\":4,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "1AS8RFZa7buJkVDlsLOzK5RBvwy3iEwzEw2o28J90s8",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "the same account ids, but written for another identity key than mine",
+        "plaintext": "{\"v\":4,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "1AS8RFZa7buJkVDlsLOzK5RBvwy3iEwzEw2o28J90s8",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "a binding key written with base64 padding",
+        "plaintext": "{\"v\":4,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU=",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "under another envelope id",
+        "plaintext": "{\"v\":4,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "a mailbox kind through the websocket",
+        "plaintext": "{\"v\":4,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       \"}",
+        "binding": {
+          "channel": "websocket",
+          "envelope_id": null,
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "a binding id in upper case",
+        "plaintext": "{\"v\":4,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "A1A1A1A1-0000-4000-8000-0000000000A1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "a typing signal through the mailbox",
+        "plaintext": "{\"v\":4,\"kind\":\"typing\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"state\":\"start\",\"pad\":\"                                                                                                                                                                                                                      \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "version 2 without the old conversation id",
+        "plaintext": "{\"v\":2,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"pad\":\"                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "version 2 with the old conversation id of another contact",
+        "plaintext": "{\"v\":2,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"pad\":\"                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": "c3c3c3c3-0000-4000-8000-0000000000c3"
+        }
+      }
+    ],
+    "legacy_read": {
+      "plaintext": "{\"v\":2,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"pad\":\"                        \"}",
+      "binding": {
+        "channel": "mailbox",
+        "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+        "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+        "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+        "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+        "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+        "legacy_conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01"
+      },
+      "version": 2
+    },
+    "version_3_refused": {
+      "plaintext": "{\"v\":3,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                        \"}",
+      "binding": {
+        "channel": "mailbox",
+        "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+        "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+        "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+        "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+        "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+        "legacy_conversation_id": null
+      },
+      "error": "UnsupportedContent"
+    }
+  }
+}

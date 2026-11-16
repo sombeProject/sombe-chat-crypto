@@ -1,11 +1,13 @@
-//! Content version 3 (since 0.8.0): one variant per kind, bound to its element by the
-//! sender's and the recipient's account ids, the channel and the envelope id; versions 1
+//! Content version 4 (since 0.8.1): one variant per kind, bound to its element by the
+//! sender's and the recipient's account ids and identity keys, the channel and the envelope id; versions 1
 //! and 2 still read for an element vouched for with its old conversation id; and the sizes
 //! and session limits the SOMBE app relies on.
 
 mod common;
 
-use common::{device, key, legacy, mailbox, out, websocket, RECIPIENT, SENDER};
+use common::{
+    device, key, legacy, mailbox, out, websocket, RECIPIENT, RECIPIENT_KEY, SENDER, SENDER_KEY, STRANGER_KEY,
+};
 use sombe_chat_crypto::*;
 
 const CONVERSATION: &str = "6f1c2a8e-0000-4000-8000-000000000001";
@@ -14,7 +16,7 @@ const CLIENT: &str = "6f1c2a8e-0000-4000-8000-000000000002";
 const TARGET: &str = "6f1c2a8e-0000-4000-8000-000000000003";
 const OTHER: &str = "c3c3c3c3-0000-4000-8000-0000000000c3";
 
-fn v3(body: ContentBody) -> OutgoingContent {
+fn v4(body: ContentBody) -> OutgoingContent {
     let envelope_id = match body {
         ContentBody::Typing { .. } => None,
         _ => Some(ENVELOPE),
@@ -30,7 +32,7 @@ fn read(json: String) -> Result<Content, ChatCryptoError> {
 }
 
 fn read_back(content: &OutgoingContent) -> Content {
-    Content { version: 3, envelope_id: content.envelope_id.clone(), body: content.body.clone() }
+    Content { version: 4, envelope_id: content.envelope_id.clone(), body: content.body.clone() }
 }
 
 fn text(body: &str) -> ContentBody {
@@ -46,9 +48,11 @@ fn receipt(status: ReceiptStatus, at: &str) -> ContentBody {
     ContentBody::Receipt { status, up_to_envelope_id: TARGET.into(), up_to_created_at: at.into() }
 }
 
-/// A version 3 JSON from `SENDER` to `RECIPIENT` with these fields after the ids.
-fn v3_json(fields: &str) -> String {
-    format!(r#"{{"v":3,"sender_account_id":"{SENDER}","recipient_account_id":"{RECIPIENT}",{fields}}}"#)
+/// A version 4 JSON from `SENDER` to `RECIPIENT` with these fields after the ids.
+fn v4_json(fields: &str) -> String {
+    format!(
+        r#"{{"v":4,"sender_account_id":"{SENDER}","sender_ed25519":"{SENDER_KEY}","recipient_account_id":"{RECIPIENT}","recipient_ed25519":"{RECIPIENT_KEY}",{fields}}}"#
+    )
 }
 
 /// The content JSON without its `pad` field, after checking the padding itself.
@@ -151,12 +155,14 @@ fn every_kind_round_trips_with_its_fields_in_order() {
         ),
     ];
     for (body, fields) in cases {
-        let content = v3(body);
+        let content = v4(body);
         let json = encode_content(content.clone()).unwrap();
-        let expected = format!(r#"{{"v":3,{fields}}}"#)
+        let expected = format!(r#"{{"v":4,{fields}}}"#)
             .replace(
                 "IDS",
-                &format!(r#""sender_account_id":"{SENDER}","recipient_account_id":"{RECIPIENT}""#),
+                &format!(
+                    r#""sender_account_id":"{SENDER}","sender_ed25519":"{SENDER_KEY}","recipient_account_id":"{RECIPIENT}","recipient_ed25519":"{RECIPIENT_KEY}""#
+                ),
             )
             .replace(r#""E""#, &format!(r#""{ENVELOPE}""#))
             .replace(r#""M""#, &format!(r#""{CLIENT}""#))
@@ -170,25 +176,25 @@ fn every_kind_round_trips_with_its_fields_in_order() {
 
 #[test]
 fn envelope_id_is_required_except_on_typing_where_it_is_forbidden() {
-    assert!(is_invalid(encode_content(OutgoingContent { envelope_id: None, ..v3(text("x")) })));
+    assert!(is_invalid(encode_content(OutgoingContent { envelope_id: None, ..v4(text("x")) })));
     let no_id =
-        OutgoingContent { envelope_id: None, ..v3(receipt(ReceiptStatus::Read, "2026-11-04T12:34:56Z")) };
+        OutgoingContent { envelope_id: None, ..v4(receipt(ReceiptStatus::Read, "2026-11-04T12:34:56Z")) };
     assert!(is_invalid(encode_content(no_id)));
     let typing_with_id = OutgoingContent {
         envelope_id: Some(ENVELOPE.into()),
-        ..v3(ContentBody::Typing { state: TypingState::Start })
+        ..v4(ContentBody::Typing { state: TypingState::Start })
     };
     assert!(is_invalid(encode_content(typing_with_id)));
 
     // The same rules when read.
-    assert!(is_invalid(read(v3_json(&format!(
+    assert!(is_invalid(read(v4_json(&format!(
         r#""kind":"typing","envelope_id":"{ENVELOPE}","state":"start""#
     )))));
-    assert!(is_invalid(read(v3_json(&format!(
+    assert!(is_invalid(read(v4_json(&format!(
         r#""kind":"text","client_message_id":"{CLIENT}","body":"x""#
     )))));
-    assert!(read(v3_json(r#""kind":"typing","state":"stop""#)).is_ok());
-    assert!(read(v3_json(r#""kind":"typing","envelope_id":null,"state":"stop""#)).is_ok());
+    assert!(read(v4_json(r#""kind":"typing","state":"stop""#)).is_ok());
+    assert!(read(v4_json(r#""kind":"typing","envelope_id":null,"state":"stop""#)).is_ok());
 }
 
 #[test]
@@ -197,7 +203,9 @@ fn ids_are_written_in_lower_case_and_read_only_in_lower_case() {
     let lower = "6f1c2a8e-0000-4000-8000-00000000abcd";
     let content = OutgoingContent {
         sender_account_id: SENDER.to_uppercase(),
+        sender_ed25519_key: SENDER_KEY.into(),
         recipient_account_id: RECIPIENT.to_uppercase(),
+        recipient_ed25519_key: RECIPIENT_KEY.into(),
         envelope_id: Some(upper.into()),
         body: ContentBody::Text {
             client_message_id: upper.into(),
@@ -233,15 +241,15 @@ fn ids_are_written_in_lower_case_and_read_only_in_lower_case() {
         "6f1c2a8e-0000-4000-8000-00000000abcd ",
     ] {
         assert!(
-            is_invalid(encode_content(OutgoingContent { sender_account_id: bad.into(), ..v3(text("x")) })),
+            is_invalid(encode_content(OutgoingContent { sender_account_id: bad.into(), ..v4(text("x")) })),
             "{bad:?}"
         );
         assert!(
-            is_invalid(encode_content(OutgoingContent { recipient_account_id: bad.into(), ..v3(text("x")) })),
+            is_invalid(encode_content(OutgoingContent { recipient_account_id: bad.into(), ..v4(text("x")) })),
             "{bad:?}"
         );
         assert!(
-            is_invalid(encode_content(OutgoingContent { envelope_id: Some(bad.into()), ..v3(text("x")) })),
+            is_invalid(encode_content(OutgoingContent { envelope_id: Some(bad.into()), ..v4(text("x")) })),
             "{bad:?}"
         );
         let targets = [
@@ -281,14 +289,14 @@ fn ids_are_written_in_lower_case_and_read_only_in_lower_case() {
             ContentBody::ContactCancel { request_id: bad.into() },
         ];
         for body in targets {
-            assert!(is_invalid(encode_content(v3(body.clone()))), "{bad:?} in {body:?}");
+            assert!(is_invalid(encode_content(v4(body.clone()))), "{bad:?} in {body:?}");
         }
     }
 }
 
 #[test]
 fn the_content_is_bound_to_its_element() {
-    let json = encode_content(v3(text("Bonjour"))).unwrap();
+    let json = encode_content(v4(text("Bonjour"))).unwrap();
     assert!(decode_content(json.clone(), mailbox(ENVELOPE)).is_ok());
     // Sent again by the server to someone else, or presented as coming from someone else.
     assert!(is_unbound(decode_content(
@@ -307,7 +315,7 @@ fn the_content_is_bound_to_its_element() {
         json.clone(),
         ContentBinding { envelope_id: None, ..mailbox(ENVELOPE) }
     )));
-    let typing = encode_content(v3(ContentBody::Typing { state: TypingState::Start })).unwrap();
+    let typing = encode_content(v4(ContentBody::Typing { state: TypingState::Start })).unwrap();
     assert!(decode_content(typing.clone(), websocket()).is_ok());
     assert!(is_unbound(decode_content(typing.clone(), mailbox(ENVELOPE))));
     assert!(is_unbound(decode_content(
@@ -331,13 +339,79 @@ fn the_content_is_bound_to_its_element() {
         json.clone(),
         ContentBinding { envelope_id: Some(ENVELOPE.to_uppercase()), ..mailbox(ENVELOPE) }
     )));
-    // A legacy id given with a version 3 content changes nothing.
+    // A legacy id given with a version 4 content changes nothing.
     assert!(decode_content(json, legacy(ENVELOPE, CONVERSATION)).is_ok());
 }
 
 #[test]
+fn a_content_is_bound_to_both_identity_keys() {
+    let json = encode_content(v4(text("Salut"))).unwrap();
+    assert!(decode_content(json.clone(), mailbox(ENVELOPE)).is_ok());
+    // The right account ids, but the element's sender has another identity key: the
+    // account ids come from the server, the keys from identities the phone verified.
+    assert!(is_unbound(decode_content(
+        json.clone(),
+        ContentBinding { sender_ed25519_key: STRANGER_KEY.into(), ..mailbox(ENVELOPE) }
+    )));
+    // Written for another identity than mine.
+    assert!(is_unbound(decode_content(
+        json.clone(),
+        ContentBinding { my_ed25519_key: STRANGER_KEY.into(), ..mailbox(ENVELOPE) }
+    )));
+    // The two keys swapped.
+    assert!(is_unbound(decode_content(
+        json.clone(),
+        ContentBinding {
+            sender_ed25519_key: RECIPIENT_KEY.into(),
+            my_ed25519_key: SENDER_KEY.into(),
+            ..mailbox(ENVELOPE)
+        }
+    )));
+    // A binding key in any other spelling binds nothing: padded, too short, not base64.
+    for bad in [format!("{SENDER_KEY}="), SENDER_KEY[..42].to_owned(), "!".repeat(43), String::new()] {
+        assert!(is_unbound(decode_content(
+            json.clone(),
+            ContentBinding { sender_ed25519_key: bad.clone(), ..mailbox(ENVELOPE) }
+        )));
+        assert!(is_unbound(decode_content(
+            json.clone(),
+            ContentBinding { my_ed25519_key: bad, ..mailbox(ENVELOPE) }
+        )));
+    }
+    // A typing signal is bound the same way.
+    let typing = encode_content(v4(ContentBody::Typing { state: TypingState::Start })).unwrap();
+    assert!(is_unbound(decode_content(
+        typing,
+        ContentBinding { sender_ed25519_key: STRANGER_KEY.into(), ..websocket() }
+    )));
+}
+
+#[test]
+fn a_content_is_written_only_with_two_well_formed_identity_keys() {
+    for bad in [format!("{SENDER_KEY}="), SENDER_KEY[..42].to_owned(), "!".repeat(43), String::new()] {
+        assert!(is_invalid(encode_content(OutgoingContent {
+            sender_ed25519_key: bad.clone(),
+            ..v4(text("Salut"))
+        })));
+        assert!(is_invalid(encode_content(OutgoingContent {
+            recipient_ed25519_key: bad,
+            ..v4(text("Salut"))
+        })));
+    }
+}
+
+#[test]
+fn version_3_of_0_8_0_is_no_longer_read() {
+    // What 0.8.0 wrote: the account ids, no identity key. Authentic, but not bound.
+    let v3 = format!(
+        r#"{{"v":3,"kind":"text","sender_account_id":"{SENDER}","recipient_account_id":"{RECIPIENT}","envelope_id":"{ENVELOPE}","client_message_id":"{CLIENT}","body":"Salut"}}"#
+    );
+    assert!(is_unsupported(decode_content(v3, mailbox(ENVELOPE))));
+}
+
+#[test]
 fn a_form_error_comes_before_a_binding_error() {
-    let malformed = v3_json(r#""kind":"text","envelope_id":"x","client_message_id":"y","body":"z""#);
+    let malformed = v4_json(r#""kind":"text","envelope_id":"x","client_message_id":"y","body":"z""#);
     assert!(is_invalid(decode_content(
         malformed,
         ContentBinding { my_account_id: OTHER.into(), ..mailbox(ENVELOPE) }
@@ -376,7 +450,7 @@ fn version_2_is_read_only_with_the_old_conversation_id_of_this_contact() {
 #[test]
 fn contact_kinds_check_their_form_only() {
     let request = |attestation: &str, signature: &str| {
-        encode_content(v3(ContentBody::ContactRequest {
+        encode_content(v4(ContentBody::ContactRequest {
             attestation: attestation.into(),
             attestation_signature: signature.into(),
         }))
@@ -392,13 +466,13 @@ fn contact_kinds_check_their_form_only() {
     assert!(is_invalid(request(ATTESTATION, "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4")));
     assert!(is_invalid(request(ATTESTATION, &format!("1{SIGNATURE}"))));
     // Read: exactly their fields, and no alias anywhere.
-    assert!(is_invalid(read(v3_json(&format!(
+    assert!(is_invalid(read(v4_json(&format!(
         r#""kind":"contact_request","envelope_id":"{ENVELOPE}","attestation":"x","attestation_signature":"{SIGNATURE}","alias":"alice""#
     )))));
-    assert!(is_invalid(read(v3_json(&format!(
+    assert!(is_invalid(read(v4_json(&format!(
         r#""kind":"contact_accept","envelope_id":"{ENVELOPE}","attestation":"x","attestation_signature":"{SIGNATURE}""#
     )))));
-    assert!(is_invalid(read(v3_json(&format!(r#""kind":"contact_cancel","envelope_id":"{ENVELOPE}""#)))));
+    assert!(is_invalid(read(v4_json(&format!(r#""kind":"contact_cancel","envelope_id":"{ENVELOPE}""#)))));
 }
 
 #[test]
@@ -410,7 +484,7 @@ fn receipt_date_is_rfc_3339_with_an_offset() {
         "2026-11-04T13:34:56+01:00",
         "2026-11-04T07:34:56-05:00",
     ] {
-        let json = encode_content(v3(receipt(ReceiptStatus::Delivered, good))).unwrap();
+        let json = encode_content(v4(receipt(ReceiptStatus::Delivered, good))).unwrap();
         assert!(json.contains(good), "{good}");
     }
     for bad in [
@@ -427,25 +501,25 @@ fn receipt_date_is_rfc_3339_with_an_offset() {
         "26-11-04T12:34:56Z",
         "1730723696",
     ] {
-        assert!(is_invalid(encode_content(v3(receipt(ReceiptStatus::Read, bad)))), "{bad:?}");
+        assert!(is_invalid(encode_content(v4(receipt(ReceiptStatus::Read, bad)))), "{bad:?}");
     }
 }
 
 #[test]
 fn text_limits_are_those_of_0_4_0() {
     // Body of a text or an edit: 1 to 4000 characters, not blank.
-    assert!(encode_content(v3(text(&"é".repeat(4000)))).is_ok());
-    assert!(is_invalid(encode_content(v3(text(&"é".repeat(4001))))));
-    assert!(is_invalid(encode_content(v3(text("  ")))));
-    assert!(is_invalid(encode_content(v3(text("")))));
+    assert!(encode_content(v4(text(&"é".repeat(4000)))).is_ok());
+    assert!(is_invalid(encode_content(v4(text(&"é".repeat(4001))))));
+    assert!(is_invalid(encode_content(v4(text("  ")))));
+    assert!(is_invalid(encode_content(v4(text("")))));
     let edit = |body: &str| ContentBody::Edit {
         client_message_id: CLIENT.into(),
         edits_message_id: TARGET.into(),
         body: body.into(),
     };
-    assert!(encode_content(v3(edit(&"é".repeat(4000)))).is_ok());
-    assert!(is_invalid(encode_content(v3(edit(&"é".repeat(4001))))));
-    assert!(is_invalid(encode_content(v3(edit(" ")))));
+    assert!(encode_content(v4(edit(&"é".repeat(4000)))).is_ok());
+    assert!(is_invalid(encode_content(v4(edit(&"é".repeat(4001))))));
+    assert!(is_invalid(encode_content(v4(edit(" ")))));
 
     // Reply excerpt: at most 200 characters.
     let quoted = |excerpt: &str| ContentBody::Text {
@@ -454,8 +528,8 @@ fn text_limits_are_those_of_0_4_0() {
         reply_to_message_id: Some(TARGET.into()),
         reply_excerpt: Some(excerpt.into()),
     };
-    assert!(encode_content(v3(quoted(&"é".repeat(200)))).is_ok());
-    assert!(is_invalid(encode_content(v3(quoted(&"é".repeat(201))))));
+    assert!(encode_content(v4(quoted(&"é".repeat(200)))).is_ok());
+    assert!(is_invalid(encode_content(v4(quoted(&"é".repeat(201))))));
 
     // Reaction: one emoji of 1 to 16 code points, without white space.
     let reaction = |body: &str| ContentBody::Reaction {
@@ -463,26 +537,26 @@ fn text_limits_are_those_of_0_4_0() {
         reacts_to_message_id: TARGET.into(),
         body: body.into(),
     };
-    assert!(encode_content(v3(reaction("👨‍👩‍👧‍👦"))).is_ok());
-    assert!(encode_content(v3(reaction(&"x".repeat(16)))).is_ok());
-    assert!(is_invalid(encode_content(v3(reaction(&"x".repeat(17))))));
-    assert!(is_invalid(encode_content(v3(reaction("")))));
-    assert!(is_invalid(encode_content(v3(reaction("👍 ")))));
+    assert!(encode_content(v4(reaction("👨‍👩‍👧‍👦"))).is_ok());
+    assert!(encode_content(v4(reaction(&"x".repeat(16)))).is_ok());
+    assert!(is_invalid(encode_content(v4(reaction(&"x".repeat(17))))));
+    assert!(is_invalid(encode_content(v4(reaction("")))));
+    assert!(is_invalid(encode_content(v4(reaction("👍 ")))));
 
     // Payment comment: 1 to 500 characters.
     let payment = |body: &str| ContentBody::Payment { client_message_id: CLIENT.into(), body: body.into() };
-    assert!(encode_content(v3(payment(&"é".repeat(500)))).is_ok());
-    assert!(is_invalid(encode_content(v3(payment(&"é".repeat(501))))));
-    assert!(is_invalid(encode_content(v3(payment(" ")))));
+    assert!(encode_content(v4(payment(&"é".repeat(500)))).is_ok());
+    assert!(is_invalid(encode_content(v4(payment(&"é".repeat(501))))));
+    assert!(is_invalid(encode_content(v4(payment(" ")))));
 }
 
 #[test]
 fn unknown_kind_or_newer_version_is_unsupported_never_another_kind() {
-    assert!(is_unsupported(read(v3_json(&format!(
+    assert!(is_unsupported(read(v4_json(&format!(
         r#""kind":"poll","envelope_id":"{ENVELOPE}","question":"?""#
     )))));
     assert!(is_unsupported(read(format!(
-        r#"{{"v":4,"kind":"text","sender_account_id":"{SENDER}","recipient_account_id":"{RECIPIENT}","envelope_id":"{ENVELOPE}","client_message_id":"{CLIENT}","body":"x"}}"#
+        r#"{{"v":5,"kind":"text","sender_account_id":"{SENDER}","recipient_account_id":"{RECIPIENT}","envelope_id":"{ENVELOPE}","client_message_id":"{CLIENT}","body":"x"}}"#
     ))));
     assert!(is_unsupported(read(r#"{"v":42}"#.into())));
     // A version 1 kind unknown to 0.4.0 used to fall back on nothing either; now it is said so.
@@ -500,7 +574,7 @@ fn unknown_kind_or_newer_version_is_unsupported_never_another_kind() {
 
 #[test]
 fn malformed_content_is_invalid() {
-    let fields = |rest: &str| read(v3_json(&format!(r#""envelope_id":"{ENVELOPE}",{rest}"#)));
+    let fields = |rest: &str| read(v4_json(&format!(r#""envelope_id":"{ENVELOPE}",{rest}"#)));
     // An unknown field: a later addition goes through a new version.
     assert!(is_invalid(fields(&format!(
         r#""kind":"text","client_message_id":"{CLIENT}","body":"x","comment":"y""#
@@ -511,7 +585,7 @@ fn malformed_content_is_invalid() {
     assert!(is_invalid(fields(&format!(
         r#""kind":"receipt","status":"read","up_to_envelope_id":"{TARGET}","up_to_created_at":"2026-11-04T12:34:56Z","client_message_id":"{CLIENT}""#
     ))));
-    // The version 2 field has no place in version 3.
+    // The version 2 field has no place in version 4.
     assert!(is_invalid(fields(&format!(
         r#""kind":"text","conversation_id":"{CONVERSATION}","client_message_id":"{CLIENT}","body":"x""#
     ))));
@@ -523,13 +597,23 @@ fn malformed_content_is_invalid() {
     assert!(is_invalid(fields(r#""kind":"receipt","status":"read""#)));
     assert!(is_invalid(fields(&format!(r#""kind":"text","client_message_id":"{CLIENT}","body":7"#))));
     assert!(is_invalid(fields(r#""client_message_id":"x","body":"x""#)));
-    assert!(is_invalid(read(v3_json(r#""kind":"typing","state":"paused""#))));
-    // Without the sender or the recipient.
+    assert!(is_invalid(read(v4_json(r#""kind":"typing","state":"paused""#))));
+    // Without the sender or the recipient, or without one of their identity keys.
     assert!(is_invalid(read(format!(
-        r#"{{"v":3,"kind":"typing","sender_account_id":"{SENDER}","state":"start"}}"#
+        r#"{{"v":4,"kind":"typing","sender_account_id":"{SENDER}","sender_ed25519":"{SENDER_KEY}","state":"start"}}"#
     ))));
     assert!(is_invalid(read(format!(
-        r#"{{"v":3,"kind":"typing","recipient_account_id":"{RECIPIENT}","state":"start"}}"#
+        r#"{{"v":4,"kind":"typing","recipient_account_id":"{RECIPIENT}","recipient_ed25519":"{RECIPIENT_KEY}","state":"start"}}"#
+    ))));
+    assert!(is_invalid(read(format!(
+        r#"{{"v":4,"kind":"typing","sender_account_id":"{SENDER}","recipient_account_id":"{RECIPIENT}","recipient_ed25519":"{RECIPIENT_KEY}","state":"start"}}"#
+    ))));
+    assert!(is_invalid(read(format!(
+        r#"{{"v":4,"kind":"typing","sender_account_id":"{SENDER}","sender_ed25519":"{SENDER_KEY}","recipient_account_id":"{RECIPIENT}","state":"start"}}"#
+    ))));
+    // An identity key written with padding is not the one spelling.
+    assert!(is_invalid(read(format!(
+        r#"{{"v":4,"kind":"typing","sender_account_id":"{SENDER}","sender_ed25519":"{SENDER_KEY}=","recipient_account_id":"{RECIPIENT}","recipient_ed25519":"{RECIPIENT_KEY}","state":"start"}}"#
     ))));
     assert!(is_invalid(read(r#"{"kind":"text"}"#.into())));
     assert!(is_invalid(read(r#"{"v":0,"kind":"text"}"#.into())));
@@ -537,7 +621,7 @@ fn malformed_content_is_invalid() {
     assert!(is_invalid(read(r#"[3]"#.into())));
     assert!(is_invalid(read("not json".into())));
     // The padding is ignored when read.
-    assert!(read(v3_json(r#""kind":"typing","state":"start","pad":"   ""#)).is_ok());
+    assert!(read(v4_json(r#""kind":"typing","state":"start","pad":"   ""#)).is_ok());
 }
 
 #[test]
@@ -603,19 +687,22 @@ fn version_1_is_read_with_the_rules_of_0_4_0() {
 
 #[test]
 fn contents_are_padded_to_their_bucket() {
-    let size = |body: ContentBody| encode_content(v3(body)).unwrap().len();
-    // A typing signal, start or stop, is in the smallest bucket.
+    let size = |body: ContentBody| encode_content(v4(body)).unwrap().len();
+    // Since version 4 nothing fits 256 bytes any more: the two identity keys add about 130.
+    // A typing signal, start or stop, is at 512 bytes.
     for state in [TypingState::Start, TypingState::Stop] {
-        assert_eq!(size(ContentBody::Typing { state }), 256);
+        assert_eq!(size(ContentBody::Typing { state }), 512);
     }
-    // A receipt is in the next one (512 bytes), from the shortest to the longest.
+    // So is a receipt, from the shortest to the longest.
     assert_eq!(size(receipt(ReceiptStatus::Read, "2026-11-04T12:34:56Z")), 512);
     assert_eq!(size(receipt(ReceiptStatus::Delivered, "2026-11-04T12:34:56.123456789+01:00")), 512);
-    // Since version 3 a text never fits 256 bytes: "Oui", a short sentence, a medium text
-    // and a receipt all look the same.
+    // "Oui", a short sentence, a text of 100 bytes, a receipt and a typing signal all look
+    // the same; a text of more than about 110 bytes moves to 1024.
     assert_eq!(size(text("Oui")), 512);
     assert_eq!(size(text("Je serai là vers midi")), 512);
     assert_eq!(size(text(&"a".repeat(100))), 512);
+    assert_eq!(size(text(&"a".repeat(110))), 512);
+    assert_eq!(size(text(&"a".repeat(111))), 1024);
     // The contact kinds, with a real attestation.
     let request = ContentBody::ContactRequest {
         attestation: ATTESTATION.into(),
@@ -629,9 +716,12 @@ fn contents_are_padded_to_their_bucket() {
     };
     assert_eq!(size(accept), 1024);
     assert_eq!(size(ContentBody::ContactCancel { request_id: TARGET.into() }), 512);
-    // The longest text allowed.
-    let largest = encode_content(v3(text(&"😀".repeat(4000)))).unwrap();
-    assert_eq!(largest.len(), 16384);
+    // The longest text allowed: 4000 characters of 4 bytes are 16000 bytes, 18 too many for
+    // 16384 with the rest of a version 4 content. 3995 of them still fit.
+    assert_eq!(size(text(&"😀".repeat(3995))), 16384);
+    assert_eq!(size(text(&"a".repeat(4000))), 8192);
+    let largest = encode_content(v4(text(&"😀".repeat(4000)))).unwrap();
+    assert_eq!(largest.len(), 32768);
     assert_eq!(read(largest).unwrap().body, text(&"😀".repeat(4000)));
 }
 
@@ -654,7 +744,7 @@ fn confirmed_sessions(
 #[test]
 fn a_typing_signal_on_a_confirmed_session_is_type_1_and_under_2048_characters() {
     let (alice, bob, alice_session, bob_session) = confirmed_sessions();
-    let typing = encode_content(v3(ContentBody::Typing { state: TypingState::Start })).unwrap();
+    let typing = encode_content(v4(ContentBody::Typing { state: TypingState::Start })).unwrap();
     let sealed =
         alice.encrypt_for(bob.identity_keys(), Some(alice_session), None, typing.clone(), key()).unwrap();
     assert_eq!(sealed.envelope.olm_type, 1);

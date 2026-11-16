@@ -95,7 +95,8 @@ pub enum ChatCryptoError {
     #[error("invalid alias attestation")]
     InvalidAttestation,
     /// A content that does not belong to the element it came with (since 0.8.0): another
-    /// channel, envelope id, sender or recipient. Drop it without a trace.
+    /// channel, envelope id, sender or recipient, by account id or (since 0.8.1) by identity
+    /// key. Drop it without a trace.
     #[error("the content does not belong to this element")]
     UnboundContent,
 }
@@ -461,8 +462,6 @@ pub fn one_time_key_signed_text(key: SignedOneTimeKey) -> String {
     statement::one_time_key_text(&key.key_id, &key.public_key, key.is_fallback)
 }
 
-/// The padded JSON of a version 2 content. Refuses any other version, and any content
-/// whose shape does not match its kind (`InvalidContent`).
 /// Checks an alias attestation carried by a contact request or acceptance (since 0.8.0)
 /// and returns its alias. `sender_account_id` and `sender_account_public_key` are the
 /// sender's, from the mailbox element and their verified identity v3; `deposited_at` is
@@ -486,7 +485,10 @@ pub fn verify_alias_attestation(
     )
 }
 
-/// Writes a version 3 content (since 0.8.0), padded to its size bucket.
+/// Writes a version 4 content (since 0.8.1), padded to its size bucket: it names the
+/// account ids and the ed25519 identity keys of its sender and its recipient. A content
+/// whose shape does not match its kind, or a key that is not base64 without padding of 32
+/// bytes, is `InvalidContent`.
 #[uniffi::export]
 pub fn encode_content(content: OutgoingContent) -> Result<String> {
     content::encode(content)
@@ -494,8 +496,11 @@ pub fn encode_content(content: OutgoingContent) -> Result<String> {
 
 /// Reads a decrypted content and binds it to its element (since 0.8.0): a malformed
 /// content is `InvalidContent` or `UnsupportedContent`; one that does not belong to the
-/// element (channel, envelope id, sender, recipient, or the old conversation id for
-/// versions 1 and 2) is `UnboundContent`, to be dropped without a trace.
+/// element (channel, envelope id, the account id and the identity key of the sender and of
+/// the recipient, or the old conversation id for versions 1 and 2) is `UnboundContent`, to
+/// be dropped without a trace. Give as `sender_ed25519_key` the key of the identity whose
+/// keys were given to `decrypt_from`, never one read from the content. Version 3 (0.8.0)
+/// is `UnsupportedContent`.
 #[uniffi::export]
 pub fn decode_content(json: String, binding: ContentBinding) -> Result<Content> {
     content::decode(&json, &binding)

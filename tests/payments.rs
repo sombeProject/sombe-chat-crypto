@@ -3,7 +3,7 @@
 
 mod common;
 
-use common::{mailbox, out, RECIPIENT, SENDER};
+use common::{mailbox, out, RECIPIENT, RECIPIENT_KEY, SENDER, SENDER_KEY};
 use sombe_chat_crypto::*;
 
 const ENVELOPE: &str = "6f1c2a8e-0000-4000-8000-0000000000e1";
@@ -14,7 +14,7 @@ const ADDRESS: &str = "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF";
 const SIGNATURE: &str =
     "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW";
 
-fn v3(body: ContentBody) -> OutgoingContent {
+fn v4(body: ContentBody) -> OutgoingContent {
     out(Some(ENVELOPE), body)
 }
 
@@ -64,14 +64,14 @@ fn unpadded(json: &str) -> String {
 /// A JSON content of `kind`, with the common fields and `own` after them, unpadded.
 fn raw(kind: &str, own: &str) -> String {
     format!(
-        r#"{{"v":3,"kind":"{kind}","sender_account_id":"{SENDER}","recipient_account_id":"{RECIPIENT}","envelope_id":"{ENVELOPE}"{own}}}"#
+        r#"{{"v":4,"kind":"{kind}","sender_account_id":"{SENDER}","sender_ed25519":"{SENDER_KEY}","recipient_account_id":"{RECIPIENT}","recipient_ed25519":"{RECIPIENT_KEY}","envelope_id":"{ENVELOPE}"{own}}}"#
     )
 }
 
 #[test]
 fn each_new_kind_round_trips_with_its_fields_in_order() {
     let prefix = format!(
-        r#"{{"v":3,"kind":"KIND","sender_account_id":"{SENDER}","recipient_account_id":"{RECIPIENT}","envelope_id":"{ENVELOPE}""#
+        r#"{{"v":4,"kind":"KIND","sender_account_id":"{SENDER}","sender_ed25519":"{SENDER_KEY}","recipient_account_id":"{RECIPIENT}","recipient_ed25519":"{RECIPIENT_KEY}","envelope_id":"{ENVELOPE}""#
     );
     let cases = [
         (
@@ -122,11 +122,11 @@ fn each_new_kind_round_trips_with_its_fields_in_order() {
         ),
     ];
     for (body, kind, rest) in cases {
-        let content = v3(body);
+        let content = v4(body);
         let json = encode_content(content.clone()).unwrap();
         assert_eq!(unpadded(&json), format!("{}{}", prefix.replace("KIND", kind), rest), "{kind}");
         let expected =
-            Content { version: 3, envelope_id: content.envelope_id.clone(), body: content.body.clone() };
+            Content { version: 4, envelope_id: content.envelope_id.clone(), body: content.body.clone() };
         assert_eq!(read(json).unwrap(), expected, "{kind}");
     }
 }
@@ -158,10 +158,10 @@ fn no_new_kind_carries_a_client_message_id_or_another_kinds_field() {
 
 #[test]
 fn amount_is_digits_from_1_to_i64_max() {
-    assert!(encode_content(v3(request(1, SOL, 9, None))).is_ok());
-    assert!(encode_content(v3(request(i64::MAX, SOL, 9, None))).is_ok());
-    assert!(is_invalid(encode_content(v3(request(0, SOL, 9, None)))));
-    assert!(is_invalid(encode_content(v3(request(-1, SOL, 9, None)))));
+    assert!(encode_content(v4(request(1, SOL, 9, None))).is_ok());
+    assert!(encode_content(v4(request(i64::MAX, SOL, 9, None))).is_ok());
+    assert!(is_invalid(encode_content(v4(request(0, SOL, 9, None)))));
+    assert!(is_invalid(encode_content(v4(request(-1, SOL, 9, None)))));
 
     let with = |amount: &str| {
         raw(
@@ -198,7 +198,7 @@ fn amount_is_digits_from_1_to_i64_max() {
 fn mint_is_base58_of_32_bytes() {
     // A program derived address is off the curve: still a mint.
     for mint in [SOL, USDC, "11111111111111111111111111111111"] {
-        assert!(encode_content(v3(request(1, mint, 9, None))).is_ok(), "{mint}");
+        assert!(encode_content(v4(request(1, mint, 9, None))).is_ok(), "{mint}");
     }
     for mint in [
         "",
@@ -207,7 +207,7 @@ fn mint_is_base58_of_32_bytes() {
         "0o11111111111111111111111111111111111111112",
         "So11111111111111111111111111111111111111112 ",
     ] {
-        assert!(is_invalid(encode_content(v3(request(1, mint, 9, None)))), "{mint:?}");
+        assert!(is_invalid(encode_content(v4(request(1, mint, 9, None)))), "{mint:?}");
         let json = raw(
             "payment_request",
             &format!(r#","request_id":"{REQUEST}","amount_base_units":"1","mint":"{mint}","decimals":9"#),
@@ -268,28 +268,28 @@ fn note_is_absent_null_or_1_to_500_code_points_not_blank() {
     }
 
     let emoji = "😀".repeat(500);
-    let longest = encode_content(v3(request(1, SOL, 9, Some(&emoji)))).unwrap();
+    let longest = encode_content(v4(request(1, SOL, 9, Some(&emoji)))).unwrap();
     assert_eq!(longest.len(), 4096, "500 emoji land in the 4096 byte bucket");
-    assert!(is_invalid(encode_content(v3(request(1, SOL, 9, Some(&"😀".repeat(501)))))));
-    assert!(is_invalid(encode_content(v3(request(1, SOL, 9, Some(""))))));
-    assert!(is_invalid(encode_content(v3(sent(None, Some(" "))))));
-    assert!(encode_content(v3(sent(None, Some(&"a".repeat(500))))).is_ok());
-    assert!(is_invalid(encode_content(v3(sent(None, Some(&"a".repeat(501)))))));
+    assert!(is_invalid(encode_content(v4(request(1, SOL, 9, Some(&"😀".repeat(501)))))));
+    assert!(is_invalid(encode_content(v4(request(1, SOL, 9, Some(""))))));
+    assert!(is_invalid(encode_content(v4(sent(None, Some(" "))))));
+    assert!(encode_content(v4(sent(None, Some(&"a".repeat(500))))).is_ok());
+    assert!(is_invalid(encode_content(v4(sent(None, Some(&"a".repeat(501)))))));
 }
 
 #[test]
 fn request_id_is_a_uuid_in_lower_case_and_null_only_on_a_direct_payment() {
     let upper = REQUEST.to_uppercase();
     let json =
-        encode_content(v3(ContentBody::PaymentRequestCancelled { request_id: upper.clone() })).unwrap();
+        encode_content(v4(ContentBody::PaymentRequestCancelled { request_id: upper.clone() })).unwrap();
     assert!(json.contains(REQUEST), "written in lower case");
     // Version 3 reads an id only in lower case.
     assert!(is_invalid(read(raw("payment_request_declined", &format!(r#","request_id":"{upper}""#)))));
     let got = read(raw("payment_request_declined", &format!(r#","request_id":"{REQUEST}""#))).unwrap();
     assert_eq!(got.body, ContentBody::PaymentRequestDeclined { request_id: REQUEST.into() });
 
-    assert!(is_invalid(encode_content(v3(ContentBody::PaymentRequestDeclined { request_id: "x".into() }))));
-    assert!(is_invalid(encode_content(v3(sent(Some("not-a-uuid"), None)))));
+    assert!(is_invalid(encode_content(v4(ContentBody::PaymentRequestDeclined { request_id: "x".into() }))));
+    assert!(is_invalid(encode_content(v4(sent(Some("not-a-uuid"), None)))));
     for kind in ["payment_request_declined", "payment_request_cancelled"] {
         assert!(is_invalid(read(raw(kind, ""))), "{kind}");
         assert!(is_invalid(read(raw(kind, r#","request_id":null"#))), "{kind}");
@@ -322,11 +322,11 @@ fn signatures_are_base58_of_64_bytes_and_keys_of_32() {
         decimals: 9,
         note: None,
     };
-    assert!(is_invalid(encode_content(v3(bad_sent))));
-    assert!(is_invalid(encode_content(v3(card(ADDRESS, USDC, short)))));
-    assert!(is_invalid(encode_content(v3(card(SIGNATURE, USDC, SIGNATURE)))), "an address is 32 bytes");
-    assert!(is_invalid(encode_content(v3(card(ADDRESS, "", SIGNATURE)))));
-    assert!(is_invalid(encode_content(v3(card("0OIl", USDC, SIGNATURE)))), "not in the base58 alphabet");
+    assert!(is_invalid(encode_content(v4(bad_sent))));
+    assert!(is_invalid(encode_content(v4(card(ADDRESS, USDC, short)))));
+    assert!(is_invalid(encode_content(v4(card(SIGNATURE, USDC, SIGNATURE)))), "an address is 32 bytes");
+    assert!(is_invalid(encode_content(v4(card(ADDRESS, "", SIGNATURE)))));
+    assert!(is_invalid(encode_content(v4(card("0OIl", USDC, SIGNATURE)))), "not in the base58 alphabet");
     for missing in ["wallet_address", "account_public_key", "wallet_signature"] {
         let fields =
             [("wallet_address", ADDRESS), ("account_public_key", USDC), ("wallet_signature", SIGNATURE)];
@@ -346,11 +346,11 @@ fn every_new_kind_needs_its_envelope_id() {
         ContentBody::PaymentRequestDeclined { request_id: REQUEST.into() },
         ContentBody::PaymentRequestCancelled { request_id: REQUEST.into() },
     ] {
-        let content = OutgoingContent { envelope_id: None, ..v3(body) };
+        let content = OutgoingContent { envelope_id: None, ..v4(body) };
         assert!(is_invalid(encode_content(content.clone())), "{content:?}");
     }
     let json = format!(
-        r#"{{"v":3,"kind":"wallet_card_request","sender_account_id":"{SENDER}","recipient_account_id":"{RECIPIENT}"}}"#
+        r#"{{"v":4,"kind":"wallet_card_request","sender_account_id":"{SENDER}","sender_ed25519":"{SENDER_KEY}","recipient_account_id":"{RECIPIENT}","recipient_ed25519":"{RECIPIENT_KEY}"}}"#
     );
     assert!(is_invalid(read(json)));
 }

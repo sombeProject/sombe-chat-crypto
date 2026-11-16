@@ -264,13 +264,6 @@ fn version_1_vectors_read_into_their_variant() {
 fn refused_vectors_give_their_error() {
     let v = v2_vectors();
     for json in v["unsupported_content"].as_array().unwrap() {
-        // Written when version 3 did not exist; since 0.8.0 it does, and this one, with a
-        // conversation_id and without its account ids, is malformed.
-        if s(json).starts_with(r#"{"v":3,"#) {
-            let read = decode_content(s(json), bound_to(&s(json)));
-            assert!(matches!(read, Err(ChatCryptoError::InvalidContent { .. })), "{json}");
-            continue;
-        }
         assert!(
             matches!(
                 decode_content(s(json), bound_to(&s(json))),
