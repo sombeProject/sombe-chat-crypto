@@ -34,3 +34,74 @@ pub fn key() -> Vec<u8> {
 pub fn device() -> std::sync::Arc<ChatCrypto> {
     ChatCrypto::create_account()
 }
+
+/// The test sender and recipient of a version 3 content (since 0.8.0).
+#[allow(dead_code)]
+pub const SENDER: &str = "a1a1a1a1-0000-4000-8000-0000000000a1";
+#[allow(dead_code)]
+pub const RECIPIENT: &str = "b2b2b2b2-0000-4000-8000-0000000000b2";
+
+/// A version 3 content from `SENDER` to `RECIPIENT`.
+#[allow(dead_code)]
+pub fn out(
+    envelope_id: Option<&str>,
+    body: sombe_chat_crypto::ContentBody,
+) -> sombe_chat_crypto::OutgoingContent {
+    sombe_chat_crypto::OutgoingContent {
+        sender_account_id: SENDER.into(),
+        recipient_account_id: RECIPIENT.into(),
+        envelope_id: envelope_id.map(str::to_owned),
+        body,
+    }
+}
+
+/// What `RECIPIENT` knows of a mailbox element from `SENDER`.
+#[allow(dead_code)]
+pub fn mailbox(envelope_id: &str) -> sombe_chat_crypto::ContentBinding {
+    sombe_chat_crypto::ContentBinding {
+        channel: sombe_chat_crypto::ContentChannel::Mailbox,
+        envelope_id: Some(envelope_id.to_lowercase()),
+        sender_account_id: SENDER.into(),
+        my_account_id: RECIPIENT.into(),
+        legacy_conversation_id: None,
+    }
+}
+
+/// What `RECIPIENT` knows of a websocket frame from `SENDER`.
+#[allow(dead_code)]
+pub fn websocket() -> sombe_chat_crypto::ContentBinding {
+    sombe_chat_crypto::ContentBinding {
+        channel: sombe_chat_crypto::ContentChannel::Websocket,
+        envelope_id: None,
+        ..mailbox("00000000-0000-4000-8000-000000000000")
+    }
+}
+
+/// A mailbox element deposited before the switch, vouched for with its old conversation id.
+#[allow(dead_code)]
+pub fn legacy(envelope_id: &str, conversation_id: &str) -> sombe_chat_crypto::ContentBinding {
+    sombe_chat_crypto::ContentBinding {
+        legacy_conversation_id: Some(conversation_id.to_lowercase()),
+        ..mailbox(envelope_id)
+    }
+}
+
+/// The binding a frozen version 1 or 2 vector reads with: its own conversation id given
+/// as the old one, its own envelope id, the channel of its kind.
+#[allow(dead_code)]
+pub fn bound_to(json: &str) -> sombe_chat_crypto::ContentBinding {
+    let v: serde_json::Value = serde_json::from_str(json).unwrap_or(serde_json::Value::Null);
+    let lower = |field: &str, or: &str| v[field].as_str().map_or(or.to_owned(), str::to_lowercase);
+    let typing = v["kind"] == "typing";
+    sombe_chat_crypto::ContentBinding {
+        channel: if typing {
+            sombe_chat_crypto::ContentChannel::Websocket
+        } else {
+            sombe_chat_crypto::ContentChannel::Mailbox
+        },
+        envelope_id: (!typing).then(|| lower("envelope_id", "00000000-0000-4000-8000-0000000000e0")),
+        sender_account_id: SENDER.into(),
+        my_account_id: RECIPIENT.into(),
+        legacy_conversation_id: Some(lower("conversation_id", "00000000-0000-4000-8000-000000000000")),
+    }
+}

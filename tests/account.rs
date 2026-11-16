@@ -3,7 +3,7 @@
 
 mod common;
 
-use common::{device, TestWallet};
+use common::{device, mailbox, out, TestWallet};
 use sha2::{Digest, Sha256};
 use sombe_chat_crypto::*;
 use vodozemac::{Ed25519PublicKey, Ed25519Signature};
@@ -297,17 +297,14 @@ fn account_rotation_content_round_trips() {
         wallet_address: rotation.card.wallet_address.clone(),
         wallet_signature: rotation.card.wallet_signature.clone(),
     };
-    let content = Content {
-        version: 2,
-        conversation_id: "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01".into(),
-        envelope_id: Some("c3d4e5f6-0718-4a29-8b3c-4d5e6f708192".into()),
-        body: ContentBody::AccountRotation { rotation: body.clone() },
-    };
+    let envelope = "c3d4e5f6-0718-4a29-8b3c-4d5e6f708192";
+    let content = out(Some(envelope), ContentBody::AccountRotation { rotation: body.clone() });
     let json = encode_content(content.clone()).unwrap();
     assert_eq!(json.len(), 1024);
     assert!(json.contains(r#""kind":"account_rotation""#));
     assert!(json.contains(r#""generation":2,"#));
-    assert_eq!(decode_content(json).unwrap(), content);
+    let got = decode_content(json, mailbox(envelope)).unwrap();
+    assert_eq!((got.version, got.body), (3, content.body.clone()));
 
     // Refused on write: generation 1, same keys, a field that is not base58 of its size.
     let refused = [
@@ -321,7 +318,7 @@ fn account_rotation_content_round_trips() {
         AccountRotationContent { wallet_address: format!("1{}", body.wallet_address), ..body.clone() },
     ];
     for rotation in refused {
-        let content = Content { body: ContentBody::AccountRotation { rotation }, ..content.clone() };
+        let content = OutgoingContent { body: ContentBody::AccountRotation { rotation }, ..content.clone() };
         assert!(matches!(encode_content(content), Err(ChatCryptoError::InvalidContent { .. })));
     }
 }

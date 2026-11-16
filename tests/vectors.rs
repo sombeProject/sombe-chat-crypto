@@ -1,7 +1,11 @@
 //! Checks vectors/v1.json and vectors/v2.json, so a change to a wire format cannot slip
-//! in unnoticed. vectors/v3.json (the account key, since 0.7.0) is checked in
+//! in unnoticed. Since 0.8.0 their contents are read only, for an element vouched for with
+//! its old conversation id (`bound_to`), and never written again. vectors/v3.json (the account key, since 0.7.0) is checked in
 //! tests/account_vectors.rs.
 
+mod common;
+
+use common::bound_to;
 use serde_json::Value;
 use sombe_chat_crypto::*;
 use vodozemac::Ed25519SecretKey;
@@ -82,7 +86,7 @@ fn first_message_decrypts_with_the_pickled_account() {
     assert_eq!(result.plaintext, s(&m["plaintext"]));
 
     // A version 1 content, still read since 0.5.0.
-    let content = decode_content(result.plaintext).unwrap();
+    let content = decode_content(result.plaintext.clone(), bound_to(&result.plaintext)).unwrap();
     assert_eq!(content.version, 1);
     assert_eq!(content.envelope_id, None);
     assert!(matches!(content.body, ContentBody::Text { ref body, .. } if body == "Salut ! Tu es rentré ?"));
@@ -93,7 +97,10 @@ fn first_message_decrypts_with_the_pickled_account() {
 #[test]
 fn version_1_contents_of_0_4_0_are_still_read() {
     let v = vectors();
-    let read = |name: &str| decode_content(s(&v[name]["plaintext"])).unwrap();
+    let read = |name: &str| {
+        let plaintext = s(&v[name]["plaintext"]);
+        decode_content(plaintext.clone(), bound_to(&plaintext)).unwrap()
+    };
     let edit = read("edit_content");
     assert_eq!((edit.version, edit.envelope_id.clone()), (1, None));
     assert_eq!(
@@ -132,18 +139,22 @@ fn v2_vectors() -> Value {
     serde_json::from_str(include_str!("../vectors/v2.json")).unwrap()
 }
 
-/// Every version 2 vector decodes, encodes back to the same bytes, and has its bucket size.
+/// Every version 2 vector still reads (a legacy typing signal is refused since 0.8.0), and
+/// the file keeps its bucket sizes.
 #[test]
-fn version_2_contents_are_reproducible() {
+fn version_2_contents_are_still_read() {
     let v = v2_vectors();
     let kinds = v["v2"].as_object().unwrap();
     assert_eq!(kinds.len(), 19);
     for (name, vector) in kinds {
         let plaintext = s(&vector["plaintext"]);
         assert_eq!(plaintext.len() as u64, vector["bytes"].as_u64().unwrap(), "{name}");
-        let content = decode_content(plaintext.clone()).unwrap();
-        assert_eq!(content.version, 2, "{name}");
-        assert_eq!(encode_content(content).unwrap(), plaintext, "{name}");
+        let read = decode_content(plaintext.clone(), bound_to(&plaintext));
+        if name.starts_with("typing") {
+            assert!(matches!(read, Err(ChatCryptoError::UnboundContent)), "{name}");
+        } else {
+            assert_eq!(read.unwrap().version, 2, "{name}");
+        }
     }
     assert_eq!(v["v2"]["typing_start"]["bytes"], 256);
     assert_eq!(v["v2"]["typing_stop"]["bytes"], 256);
@@ -165,7 +176,8 @@ fn version_2_contents_are_reproducible() {
 #[test]
 fn wallet_card_vector_is_signed_by_the_test_wallet() {
     let card = &v2_vectors()["v2"]["wallet_card"];
-    let content = decode_content(s(&card["plaintext"])).unwrap();
+    let plaintext = s(&card["plaintext"]);
+    let content = decode_content(plaintext.clone(), bound_to(&plaintext)).unwrap();
     let ContentBody::WalletCard { wallet_address, account_public_key, wallet_signature } = content.body
     else {
         panic!("a wallet card")
@@ -188,10 +200,24 @@ fn version_1_vectors_read_into_their_variant() {
     let kinds = v["v1_read"].as_object().unwrap();
     assert_eq!(kinds.len(), 7);
     for (name, vector) in kinds {
-        let content = decode_content(s(&vector["plaintext"])).unwrap();
+        let plaintext = s(&vector["plaintext"]);
+        let content = decode_content(plaintext.clone(), bound_to(&plaintext)).unwrap();
         let read = &vector["read"];
         assert_eq!(content.version as u64, read["version"].as_u64().unwrap(), "{name}");
-        assert_eq!(content.conversation_id, s(&read["conversation_id"]), "{name}");
+        // Bound to the old conversation id the vector names, in lower case.
+        let wrong = sombe_chat_crypto::ContentBinding {
+            legacy_conversation_id: Some("00000000-0000-4000-8000-000000000000".into()),
+            ..bound_to(&plaintext)
+        };
+        assert!(
+            matches!(decode_content(plaintext.clone(), wrong), Err(ChatCryptoError::UnboundContent)),
+            "{name}"
+        );
+        assert_eq!(
+            bound_to(&plaintext).legacy_conversation_id.unwrap(),
+            s(&read["conversation_id"]),
+            "{name}"
+        );
         assert_eq!(content.envelope_id, None, "{name}");
         let b = &read["body"];
         let opt = |field: &str| b[field].as_str().map(str::to_owned);
@@ -238,9 +264,28 @@ fn version_1_vectors_read_into_their_variant() {
 fn refused_vectors_give_their_error() {
     let v = v2_vectors();
     for json in v["unsupported_content"].as_array().unwrap() {
-        assert!(matches!(decode_content(s(json)), Err(ChatCryptoError::UnsupportedContent { .. })), "{json}");
+        // Written when version 3 did not exist; since 0.8.0 it does, and this one, with a
+        // conversation_id and without its account ids, is malformed.
+        if s(json).starts_with(r#"{"v":3,"#) {
+            let read = decode_content(s(json), bound_to(&s(json)));
+            assert!(matches!(read, Err(ChatCryptoError::InvalidContent { .. })), "{json}");
+            continue;
+        }
+        assert!(
+            matches!(
+                decode_content(s(json), bound_to(&s(json))),
+                Err(ChatCryptoError::UnsupportedContent { .. })
+            ),
+            "{json}"
+        );
     }
     for json in v["invalid_content"].as_array().unwrap() {
-        assert!(matches!(decode_content(s(json)), Err(ChatCryptoError::InvalidContent { .. })), "{json}");
+        assert!(
+            matches!(
+                decode_content(s(json), bound_to(&s(json))),
+                Err(ChatCryptoError::InvalidContent { .. })
+            ),
+            "{json}"
+        );
     }
 }

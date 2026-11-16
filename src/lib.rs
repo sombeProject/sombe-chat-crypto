@@ -26,7 +26,9 @@ pub use account::{
     SignedStatement, WalletCard,
 };
 pub use attestation::TrustedAttestationKey;
-pub use content::{Content, ContentBody, ReceiptStatus, TypingState};
+pub use content::{
+    Content, ContentBinding, ContentBody, ContentChannel, OutgoingContent, ReceiptStatus, TypingState,
+};
 
 uniffi::setup_scaffolding!();
 
@@ -92,6 +94,10 @@ pub enum ChatCryptoError {
     /// signature, its account or its date. Never more detail.
     #[error("invalid alias attestation")]
     InvalidAttestation,
+    /// A content that does not belong to the element it came with (since 0.8.0): another
+    /// channel, envelope id, sender or recipient. Drop it without a trace.
+    #[error("the content does not belong to this element")]
+    UnboundContent,
 }
 
 type Result<T> = std::result::Result<T, ChatCryptoError>;
@@ -480,16 +486,19 @@ pub fn verify_alias_attestation(
     )
 }
 
+/// Writes a version 3 content (since 0.8.0), padded to its size bucket.
 #[uniffi::export]
-pub fn encode_content(content: Content) -> Result<String> {
+pub fn encode_content(content: OutgoingContent) -> Result<String> {
     content::encode(content)
 }
 
-/// Reads a version 1 or version 2 content, with every UUID in lower case. A kind or a
-/// version it does not know is `UnsupportedContent`; a malformed content is `InvalidContent`.
+/// Reads a decrypted content and binds it to its element (since 0.8.0): a malformed
+/// content is `InvalidContent` or `UnsupportedContent`; one that does not belong to the
+/// element (channel, envelope id, sender, recipient, or the old conversation id for
+/// versions 1 and 2) is `UnboundContent`, to be dropped without a trace.
 #[uniffi::export]
-pub fn decode_content(json: String) -> Result<Content> {
-    content::decode(&json)
+pub fn decode_content(json: String, binding: ContentBinding) -> Result<Content> {
+    content::decode(&json, &binding)
 }
 
 #[uniffi::export]
