@@ -388,9 +388,11 @@ version 2 content's `envelope_id` must also equal the element's. The app gives t
 only for an element deposited before the switch, and only the one kept for that contact.
 A legacy `typing` is refused on either channel.
 
-Padding is as before. A `typing` stays in the smallest bucket (256 bytes); every text, a
-receipt, a payment request and a cancellation are at 512 bytes, since the two account ids
-add about 115 bytes; a contact request or acceptance and an `account_rotation` at 1024.
+Padding is as before. A `typing` stays in the smallest bucket (256 bytes). A short text
+(up to about 230 bytes of body, without a reply), a receipt, a payment request and a cancellation are at
+512 bytes, since the two account ids add about 115 bytes; a short text no longer fits 256.
+A contact request or acceptance and an `account_rotation` are at 1024; a longer text in
+the next power of two, up to 16384 for the longest one allowed.
 Encrypted on a confirmed session, a `typing` stays well under the 2048 characters the
 server relays.
 
