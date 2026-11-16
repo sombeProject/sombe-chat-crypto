@@ -208,7 +208,7 @@ fn epoch_seconds(value: &str) -> Result<i64, ChatCryptoError> {
 }
 
 /// Year, month, day, hour, minute and second of a timestamp, each within its calendar range.
-fn date_fields(value: &str) -> Result<[i64; 6], ChatCryptoError> {
+pub(crate) fn date_fields(value: &str) -> Result<[i64; 6], ChatCryptoError> {
     let bad = || invalid_statement("created must be ISO 8601 UTC");
     check_shape(value)?;
     let number = |from: usize, to: usize| value[from..to].parse::<i64>().map_err(|_| bad());

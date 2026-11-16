@@ -25,7 +25,8 @@ kinds since 0.6.0), and `vectors/v3.json` those of the account key (since 0.7.0)
 derivation, the sealed key, the wallet card and its fingerprint, the four texts it signs,
 the rotation proof, the `account_rotation` content and the safety number v2. The ChatPay
 server replays `vectors/v3.json` byte for byte, so the server and the module never build
-a text differently.
+a text differently. `vectors/v4.json` (since 0.8.0) holds alias attestations, accepted and
+refused, with the test signing seeds; the server replays it too.
 
 ## Account key (since 0.7.0)
 
@@ -258,6 +259,54 @@ fallback:<true|false>
 A sender verifies the signature against the recipient's verified identity before
 opening a session with the key. The server hands out each one time key once, and the
 fallback key only when no one time key is left.
+
+## Alias attestation (since 0.8.0)
+
+A contact request (and its acceptance) carries a short proof, signed by the ChatPay server,
+that an alias belongs to an account. The phone checks it offline, so the alias it shows
+always comes from the server's signature, never from a free field of the envelope. The
+server is trusted for the link between an alias and an account, as it already is for a
+search by alias.
+
+The text is six lines, UTF-8, separated by `\n`, without a final `\n`:
+
+```
+SOMBE alias attestation v1
+kid:<kid>
+alias:<alias>
+account_id:<account_id>
+account:<account_public_key>
+expires:<unix seconds>
+```
+
+- `kid`: the server key that signed it, 1 to 16 characters among `a` to `z` and `0` to `9`.
+- `alias`: `^[a-z][a-z0-9_]{2,19}$`, checked byte by byte.
+- `account_id`: the account's random id, a lower case UUID.
+- `account`: the account public key (base58 of 32 bytes), the one that signs the identity v3.
+- `expires`: seconds since 1970, decimal digits without sign or leading zero. The server
+  sets it 24 hours after signing.
+
+The server signs the whole text with Ed25519; the signature is base58 of 64 bytes. It keeps
+neither the text nor the signature.
+
+`verify_alias_attestation(text, signature, trusted_keys, sender_account_id,
+sender_account_public_key, deposited_at)` returns the alias only if all of these hold:
+
+- the text is at most 512 bytes, has exactly the six lines above, and is exactly the text
+  rebuilt from its parsed values (so CRLF, a final newline or any other spelling fails);
+- every value follows its rule above;
+- `trusted_keys` lists each `kid` once, every key is base58 of 32 bytes, and it contains
+  the text's `kid`;
+- the signature holds under that key (strict Ed25519 verification);
+- `account_id` equals `sender_account_id` (the mailbox element's sender), and `account`
+  is the same 32 bytes as `sender_account_public_key` (from the sender's verified
+  identity v3). An attestation carried by another account's envelope is refused;
+- `deposited_at` (the element's `created_at`, `2026-10-14T18:30:01.183Z` or without
+  milliseconds, a date that exists) is at most `expires`, compared to the millisecond.
+
+Anything else is `InvalidAttestation`, with no detail. The app holds the trusted keys of
+its environment in the APK; a public key is not a secret. An attestation whose `kid` the
+app does not know is refused like any other.
 
 ## Envelope
 
