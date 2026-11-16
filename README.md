@@ -11,13 +11,14 @@ no business logic: no networking, no storage, no payments.
 - [vectors/v1.json](vectors/v1.json): test vectors written by 0.4.0 (frozen).
 - [vectors/v2.json](vectors/v2.json): content version 2, one vector per kind (since 0.5.0; wallet card and payments since 0.6.0).
 - [vectors/v3.json](vectors/v3.json): the account key, the texts it signs, its rotation and the safety number v2 (since 0.7.0).
-- [vectors/v4.json](vectors/v4.json): alias attestations accepted and refused, and content version 3 with its binding (since 0.8.0).
+- [vectors/v4.json](vectors/v4.json): alias attestations accepted and refused (since 0.8.0), and the content version 3 of 0.8.0, no longer read (frozen).
+- [vectors/v5.json](vectors/v5.json): content version 4 with its binding, account ids and identity keys (since 0.8.1).
 
 ## Build and test
 
 ```bash
 cargo test                      # Rust tests and test vectors
-cargo run --bin make-vectors    # regenerates vectors/v2.json and v3.json (deterministic); v1.json is frozen
+cargo run --bin make-vectors    # regenerates vectors/v5.json (deterministic); v1.json to v4.json are frozen
 ```
 
 vodozemac is a crates.io dependency pinned with `=`, never copied into this repository.
@@ -75,9 +76,13 @@ compareScannedSafetyCode(me, contact, scannedText) // Match, Mismatch, OutdatedC
 val sent = account.encryptFor(remote, session, claimedKey, plaintext, pickleKey)
 val read = account.decryptFrom(remote, sessions, envelope, pickleKey)
 
-// Content (since 0.8.0): version 3 written, bound to its sender, recipient, channel and envelope.
-val json = encodeContent(OutgoingContent(myAccountId, peerAccountId, envelopeId, ContentBody.Text(clientId, "Salut", null, null)))
-val binding = ContentBinding(ContentChannel.MAILBOX, element.id, element.senderAccountId, myAccountId, null)
+// Content (since 0.8.1): version 4 written, bound to its sender and recipient (account id and
+// ed25519 identity key of each), its channel and its envelope.
+val myKey = account.identityKeys().ed25519Key      // contact.ed25519Key: from verifyIdentity, as pinned
+val json = encodeContent(OutgoingContent(myAccountId, myKey, peerAccountId, contact.ed25519Key, envelopeId,
+    ContentBody.Text(clientId, "Salut", null, null)))
+val binding = ContentBinding(ContentChannel.MAILBOX, element.id, element.senderAccountId, contact.ed25519Key,
+    myAccountId, myKey, null)
 when (val body = decodeContent(read.plaintext, binding).body) { // UnboundContent: drop, still acknowledge
     is ContentBody.Receipt -> body.status                          // UnsupportedContent: authentic, not shown
     is ContentBody.Typing -> body.state                            // InvalidContent: kept as unreadable

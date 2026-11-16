@@ -243,7 +243,7 @@ fn a_session_stored_by_0_7_0_still_opens_and_is_bound_when_stored_again() {
 #[test]
 fn a_base58_field_too_long_is_refused_without_being_decoded() {
     let json = format!(
-        "{{\"v\":3,\"kind\":\"wallet_card\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"22222222-2222-2222-2222-222222222222\",\"wallet_address\":\"{}\",\"account_public_key\":\"x\",\"wallet_signature\":\"x\"}}",
+        "{{\"v\":4,\"kind\":\"wallet_card\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"22222222-2222-2222-2222-222222222222\",\"wallet_address\":\"{}\",\"account_public_key\":\"x\",\"wallet_signature\":\"x\"}}",
         "z".repeat(200_000)
     );
     let started = Instant::now();
@@ -260,4 +260,82 @@ fn a_base58_field_too_long_is_refused_without_being_decoded() {
         wallet_signature: "1".repeat(89),
     };
     assert!(matches!(verify_wallet_card(card), Err(ChatCryptoError::InvalidKey { .. })));
+}
+
+/// What 0.8.1 closes. An identity statement does not prove that its author holds its
+/// curve25519 key, so Mallory can publish a valid identity with Alice's. A server that
+/// hands Alice's message to Bob as Mallory's, and that also gave Alice the account id Bob
+/// knows as Mallory's, had every account id agree. The identity keys do not.
+#[test]
+fn a_borrowed_curve25519_key_passes_no_message_off_as_someone_elses() {
+    const SHARED_ID: &str = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const BOB_ID: &str = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const ENVELOPE: &str = "22222222-2222-4222-8222-222222222222";
+    let (alice, bob) = (device(), device());
+
+    // Mallory: her own account key and ed25519 key, Alice's curve25519 key. It verifies.
+    let (mallory_account, mallory_ed) = (Ed25519SecretKey::new(), Ed25519SecretKey::new());
+    let mallory = verify_identity(raw_statement(
+        &mallory_account,
+        &mallory_ed,
+        &keys(&alice).curve25519_key,
+        &mallory_ed.public_key().to_base64(),
+        CREATED,
+    ))
+    .unwrap();
+    let mallory_keys = IdentityKeys {
+        curve25519_key: mallory.curve25519_key.clone(),
+        ed25519_key: mallory.ed25519_key.clone(),
+    };
+
+    let text = |sender: &str, sender_key: &str, recipient: &str, recipient_key: &str, body: &str| {
+        encode_content(OutgoingContent {
+            sender_account_id: sender.into(),
+            sender_ed25519_key: sender_key.into(),
+            recipient_account_id: recipient.into(),
+            recipient_ed25519_key: recipient_key.into(),
+            envelope_id: Some(ENVELOPE.into()),
+            body: ContentBody::Text {
+                client_message_id: "33333333-3333-4333-8333-333333333333".into(),
+                body: body.into(),
+                reply_to_message_id: None,
+                reply_excerpt: None,
+            },
+        })
+        .unwrap()
+    };
+    let element = |sender: &str, sender_key: &str, me: &str, my_key: &str| ContentBinding {
+        channel: ContentChannel::Mailbox,
+        envelope_id: Some(ENVELOPE.into()),
+        sender_account_id: sender.into(),
+        sender_ed25519_key: sender_key.into(),
+        my_account_id: me.into(),
+        my_ed25519_key: my_key.into(),
+        legacy_conversation_id: None,
+    };
+
+    // Alice, told that her own account id is SHARED_ID, writes to Bob.
+    let one_time_key = bob.generate_one_time_keys(1).remove(0);
+    let content = text(SHARED_ID, &keys(&alice).ed25519_key, BOB_ID, &keys(&bob).ed25519_key, "from Alice");
+    let sent = alice.encrypt_for(keys(&bob), None, Some(one_time_key), content, key()).unwrap();
+
+    // The server hands it to Bob as Mallory's. Olm alone still opens it: same curve25519 key.
+    let opened = bob.decrypt_from(mallory_keys.clone(), vec![], sent.envelope.clone(), key()).unwrap();
+    // Bob binds it to Mallory's verified identity: every account id agrees, her key does not.
+    let as_mallory = element(SHARED_ID, &mallory.ed25519_key, BOB_ID, &keys(&bob).ed25519_key);
+    assert_eq!(
+        decode_content(opened.plaintext.clone(), as_mallory).err(),
+        Some(ChatCryptoError::UnboundContent)
+    );
+    // Bound to Alice's own identity, the same content reads.
+    let as_alice = element(SHARED_ID, &keys(&alice).ed25519_key, BOB_ID, &keys(&bob).ed25519_key);
+    assert!(decode_content(opened.plaintext, as_alice).is_ok());
+
+    // The other way: Bob answers Mallory on that session, and the server gives it to Alice.
+    let answer = text(BOB_ID, &keys(&bob).ed25519_key, SHARED_ID, &mallory.ed25519_key, "for Mallory only");
+    let answered = bob.encrypt_for(mallory_keys, Some(opened.session), None, answer, key()).unwrap();
+    let heard = alice.decrypt_from(keys(&bob), vec![sent.session], answered.envelope, key()).unwrap();
+    // Alice can decrypt it, but it was written for Mallory's identity key, not hers.
+    let to_alice = element(BOB_ID, &keys(&bob).ed25519_key, SHARED_ID, &keys(&alice).ed25519_key);
+    assert_eq!(decode_content(heard.plaintext, to_alice).err(), Some(ChatCryptoError::UnboundContent));
 }

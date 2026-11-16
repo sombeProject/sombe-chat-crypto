@@ -51,7 +51,9 @@ fun main() {
     val envelope = "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78"
     val content = OutgoingContent(
         senderAccountId = aliceAccountId,
+        senderEd25519Key = alice.identityKeys().ed25519Key,
         recipientAccountId = bobAccountId,
+        recipientEd25519Key = bob.identityKeys().ed25519Key,
         envelopeId = envelope,
         body = ContentBody.Text(
             clientMessageId = "1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12",
@@ -60,12 +62,17 @@ fun main() {
             replyExcerpt = null,
         ),
     )
-    val mailbox = ContentBinding(ContentChannel.MAILBOX, envelope, aliceAccountId, bobAccountId, null)
-    val websocket = ContentBinding(ContentChannel.WEBSOCKET, null, aliceAccountId, bobAccountId, null)
+    // What Bob knows of an element from Alice: her account id and the ed25519 key of her
+    // verified identity, his own account id and identity key (since 0.8.1).
+    val mailbox = ContentBinding(
+        ContentChannel.MAILBOX, envelope, aliceAccountId, alice.identityKeys().ed25519Key,
+        bobAccountId, bob.identityKeys().ed25519Key, null,
+    )
+    val websocket = mailbox.copy(channel = ContentChannel.WEBSOCKET, envelopeId = null)
     fun roundTrips(each: OutgoingContent): Boolean {
         val binding = if (each.body is ContentBody.Typing) websocket else mailbox
         val read = decodeContent(encodeContent(each), binding)
-        return read.version.toInt() == 3 && read.envelopeId == each.envelopeId && read.body == each.body
+        return read.version.toInt() == 4 && read.envelopeId == each.envelopeId && read.body == each.body
     }
     val first = alice.encryptFor(bob.identityKeys(), null, otk, encodeContent(content), key)
     check(first.envelope.olmType.toInt() == 0, "first message is type 0")
@@ -140,7 +147,7 @@ fun main() {
     }
     try {
         decodeContent(
-            """{"v":3,"kind":"poll","sender_account_id":"$aliceAccountId","recipient_account_id":"$bobAccountId","envelope_id":"$envelope"}""",
+            """{"v":4,"kind":"poll","sender_account_id":"$aliceAccountId","sender_ed25519":"${alice.identityKeys().ed25519Key}","recipient_account_id":"$bobAccountId","recipient_ed25519":"${bob.identityKeys().ed25519Key}","envelope_id":"$envelope"}""",
             mailbox,
         )
         check(false, "an unknown kind must throw")

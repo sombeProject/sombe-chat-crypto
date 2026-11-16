@@ -304,7 +304,7 @@ fn account_rotation_content_round_trips() {
     assert!(json.contains(r#""kind":"account_rotation""#));
     assert!(json.contains(r#""generation":2,"#));
     let got = decode_content(json, mailbox(envelope)).unwrap();
-    assert_eq!((got.version, got.body), (3, content.body.clone()));
+    assert_eq!((got.version, got.body), (4, content.body.clone()));
 
     // Refused on write: generation 1, same keys, a field that is not base58 of its size.
     let refused = [

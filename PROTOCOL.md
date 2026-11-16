@@ -25,6 +25,12 @@ element it came with. It adds the alias attestation and the three contact kinds.
 with its old conversation id. `vectors/v1.json`, `v2.json` and `v3.json` are frozen: their
 contents can no longer be written, only read.
 
+0.8.1 writes content version 4, which also names the ed25519 keys of the sender's and the
+recipient's Olm identities: account ids are given by the server, and an identity does not
+prove that its author holds its curve25519 key, so the ids alone did not stop a server from
+passing one person's messages off as another's (*Version 4*). Version 3 was written by
+0.8.0 only, is no longer read, and `vectors/v4.json` is frozen in turn.
+
 `vectors/v1.json` holds test vectors written by 0.4.0 (its identity statement and safety
 number are no longer read since 0.7.0; its keys, sessions and version 1 contents still
 are), `vectors/v2.json` those of content version 2 (since 0.5.0; wallet card and payment
@@ -33,7 +39,8 @@ derivation, the sealed key, the wallet card and its fingerprint, the four texts 
 the rotation proof, the `account_rotation` content and the safety number v2. The ChatPay
 server replays `vectors/v3.json` byte for byte, so the server and the module never build
 a text differently. `vectors/v4.json` (since 0.8.0) holds alias attestations, accepted and
-refused, with the test signing seeds; the server replays it too.
+refused, with the test signing seeds; the server replays it too. `vectors/v5.json` (since
+0.8.1) holds content version 4 with its binding.
 
 ## Account key (since 0.7.0)
 
@@ -331,25 +338,26 @@ which identity a message was meant for.
 ## Content
 
 The plaintext inside the ciphertext is a JSON object. Its field `v` is the content
-version. Since 0.8.0 a phone writes only version 3 and reads versions 1, 2 and 3. The app
+version. Since 0.8.1 a phone writes only version 4 and reads versions 1, 2 and 4. The app
 never builds nor reads this JSON itself: it calls `encode_content` with an
 `OutgoingContent` record and `decode_content` with the plaintext and a `ContentBinding`;
 `body` has one variant per kind.
 
-### Version 3 (since 0.8.0)
+### Version 4 (since 0.8.1)
 
 The server no longer keeps conversations, so a content can no longer name one. Instead it
-names who wrote it and for whom, as Matrix does inside an Olm payload (`sender` and
-`recipient`, which a receiving client "MUST" check, discarding any event that does not
-comply):
+names who wrote it and for whom, as Matrix does inside an Olm payload (`sender`,
+`recipient`, `keys` and `recipient_keys`, which a receiving client "MUST" check,
+discarding any event that does not comply):
 
 ```json
-{"v":3,"kind":"text","sender_account_id":"…","recipient_account_id":"…","envelope_id":"…","client_message_id":"…","body":"…","pad":"   …"}
+{"v":4,"kind":"text","sender_account_id":"…","sender_ed25519":"…","recipient_account_id":"…","recipient_ed25519":"…","envelope_id":"…","client_message_id":"…","body":"…","pad":"   …"}
 ```
 
-Fields come in this order: `v`, `kind`, `sender_account_id`, `recipient_account_id`,
-`envelope_id` (every kind but `typing`), the fields of the kind as in version 2, then
-`pad`. Every kind of version 2 exists in version 3 with the same fields, plus three:
+Fields come in this order: `v`, `kind`, `sender_account_id`, `sender_ed25519`,
+`recipient_account_id`, `recipient_ed25519`, `envelope_id` (every kind but `typing`), the
+fields of the kind as in version 2, then `pad`. Every kind of version 2 exists in version 4
+with the same fields, plus three (since 0.8.0):
 
 | `kind` | Its own fields | Channel |
 |---|---|---|
@@ -362,43 +370,88 @@ The module checks only the form of an attestation here. Its alias comes out only
 request id is the request's envelope id, so a cancellation or an acceptance names one
 request and cannot touch another that replaced it.
 
-The account ids are UUIDs written in lower case, and version 3 reads every id only in that
-spelling: an id in upper case is `InvalidContent`. No account key is part of the link:
-an account key changes at each rotation, so a content sealed before a contact saw the
-rotation would be lost, and nothing would be gained, since the session is already bound to
-the contact (0.7.1) and only the recipient can open it.
+The account ids are UUIDs written in lower case, and version 4 reads every id only in that
+spelling: an id in upper case is `InvalidContent`.
+
+`sender_ed25519` and `recipient_ed25519` are the ed25519 keys of the two Olm identities,
+base64 without padding of 32 bytes, the one spelling `identity_keys` and `verify_identity`
+give (any other is `InvalidContent`). They are what makes the link hold against the server:
+
+- An identity statement is signed by the identity's ed25519 key and by the account key.
+  Nothing in it proves that its author holds its curve25519 key, so anyone can publish a
+  valid identity that carries another person's curve25519 key.
+- Olm opens a first message for whoever is said to own that curve25519 key. A server could
+  therefore hand Alice's message to Bob as Mallory's, Mallory being an account, the
+  server's own or an accomplice's, whose identity carries Alice's curve25519 key. Bob's
+  answers to Mallory would then be readable by Alice. No one reads anything they could not
+  already open, but Bob is wrong about who wrote, and a safety number compared with
+  Mallory does not show it.
+- The account ids do not stop this: the server gives them, and can tell Alice that her
+  own id is the one Bob knows as Mallory's. An ed25519 key cannot be borrowed that way,
+  since an identity must be signed by it. Alice's content names her key, Bob binds the
+  element to the key of Mallory's verified identity, and they differ.
+
+The keys are those of the Olm identity, not the account key: an account key changes at
+each rotation while the Olm keys stay, so a content sealed before a contact saw the
+rotation still reads.
 
 `decode_content(json, binding)` first reads the form (`InvalidContent`,
-`UnsupportedContent` for a kind it does not know or a `v` above 3), then the link, and
-refuses any mismatch as `UnboundContent`, which the app drops without a trace (it still
-acknowledges the element and keeps the advanced session). `binding` is what the app knows
-of the element, every id a lower case UUID:
+`UnsupportedContent` for a kind it does not know, for version 3 or for a `v` above 4),
+then the link, and refuses any mismatch as `UnboundContent`, which the app drops without a
+trace (it still acknowledges the element and keeps the advanced session). `binding` is
+what the app knows of the element, every id a lower case UUID and every key base64
+without padding of 32 bytes (any other spelling binds nothing):
 
 - `channel`: `Mailbox` takes every kind but `typing`, `Websocket` only `typing`;
 - `envelope_id`: the mailbox element's id, required on the mailbox and equal to the
   content's, absent on the websocket;
 - `sender_account_id`: the element's sender, which chose the session; equal to the
   content's `sender_account_id`;
+- `sender_ed25519_key`: the ed25519 key of that sender's verified identity, the very one
+  whose keys the app gave to `decrypt_from` for this element; equal to the content's
+  `sender_ed25519`. The app never takes it from the content;
 - `my_account_id`: equal to the content's `recipient_account_id`;
-- `legacy_conversation_id`: see below; ignored for version 3.
+- `my_ed25519_key`: the ed25519 key of this phone's identity (`identity_keys`); equal to
+  the content's `recipient_ed25519`;
+- `legacy_conversation_id`: see below; ignored for version 4.
+
+When writing, the app gives `encode_content` its own account id and identity key, and the
+recipient's account id with the ed25519 key of the verified identity it then encrypts for.
 
 A version 1 or 2 content is read only on the mailbox, only when the app gives
 `legacy_conversation_id`, and only when it equals the content's `conversation_id`; a
 version 2 content's `envelope_id` must also equal the element's. The app gives that id
 only for an element deposited before the switch, and only the one kept for that contact.
-A legacy `typing` is refused on either channel.
+A legacy `typing` is refused on either channel. A version 1 or 2 content names no identity
+key, so what version 4 closes stays open for these elements: the app should stop giving
+the old conversation id at a date it sets itself, not one the server tells it.
 
-Padding is as before. A `typing` stays in the smallest bucket (256 bytes). A short text
-(up to about 230 bytes of body, without a reply), a receipt, a payment request and a cancellation are at
-512 bytes, since the two account ids add about 115 bytes; a short text no longer fits 256.
-A contact request or acceptance and an `account_rotation` are at 1024; a longer text in
-the next power of two, up to 16384 for the longest one allowed.
-Encrypted on a confirmed session, a `typing` stays well under the 2048 characters the
+Padding is as before, but nothing fits the smallest bucket (256 bytes) any more: the two
+identity keys add about 130 bytes to the 115 of the two account ids. A `typing`, a
+receipt, a cancellation and a short text (up to 110 bytes of body, without a reply) are at
+512 bytes; a longer text, a contact request or acceptance and an `account_rotation` at
+1024, and so on by powers of two. The longest text allowed, 4000 characters of 4 bytes,
+is 18 bytes too long for 16384 and is padded to 32768; 4000 characters of one byte are at
+8192. Encrypted on a confirmed session, a `typing` stays well under the 2048 characters the
 server relays.
 
-`vectors/v4.json` holds one content of each kind the app sends most, with its binding,
-contents that must be refused as `UnboundContent`, and a version 2 content read with and
-without its old conversation id.
+`vectors/v5.json` holds one content of each kind the app sends most, with its binding,
+contents that must be refused as `UnboundContent` (among them the right account ids with
+another identity key), a version 2 content read with and without its old conversation id,
+and a version 3 content, refused.
+
+### Version 3 (0.8.0 only, no longer read)
+
+0.8.0 wrote the same content without `sender_ed25519` and `recipient_ed25519`:
+
+```json
+{"v":3,"kind":"text","sender_account_id":"…","recipient_account_id":"…","envelope_id":"…","client_message_id":"…","body":"…","pad":"   …"}
+```
+
+It was bound by the account ids alone, which the server gives (*Version 4*). No app was
+published with 0.8.0, so since 0.8.1 a version 3 content is `UnsupportedContent`, whatever
+its binding. `vectors/v4.json` keeps the version 3 contents of 0.8.0, which are now all
+refused; its alias attestations are unchanged and still checked.
 
 ### Version 2 (since 0.5.0, read only since 0.8.0)
 
@@ -453,7 +506,7 @@ Rules, all checked by the module, when written and when read:
   but this phone cannot show it. It is never read as another kind. A malformed content
   of a known kind is `InvalidContent`.
 
-Since 0.8.0 the module itself checks the binding of a version 2 content (*Version 3*
+Since 0.8.0 the module itself checks the binding of a version 2 content (*Version 4*
 above). Up to 0.7.1, the app checked that `conversation_id` and
 `envelope_id` equal the element they came with (so a server can neither move an
 envelope to another conversation nor replay it under another id), that each kind came
