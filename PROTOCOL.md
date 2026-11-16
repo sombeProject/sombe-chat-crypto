@@ -18,6 +18,13 @@ ahead, keys written with base64 padding, and base58 fields too long to be a key 
 signature, and it binds each stored session to its contact. What a 0.7.0 phone writes is
 still read, and the vectors are unchanged.
 
+0.8.0 writes content version 3: the server keeps no conversation any more, so each content
+names its sender's and its recipient's account ids, and the module itself binds it to the
+element it came with. It adds the alias attestation and the three contact kinds. Versions
+1 and 2 are read only for an element deposited before the switch, vouched for by the app
+with its old conversation id. `vectors/v1.json`, `v2.json` and `v3.json` are frozen: their
+contents can no longer be written, only read.
+
 `vectors/v1.json` holds test vectors written by 0.4.0 (its identity statement and safety
 number are no longer read since 0.7.0; its keys, sessions and version 1 contents still
 are), `vectors/v2.json` those of content version 2 (since 0.5.0; wallet card and payment
@@ -324,11 +331,74 @@ which identity a message was meant for.
 ## Content
 
 The plaintext inside the ciphertext is a JSON object. Its field `v` is the content
-version. Since 0.5.0 a phone writes only version 2 and reads versions 1 and 2. The app
-never builds nor reads this JSON itself: it calls `encode_content` and `decode_content`
-with a `Content` record, whose `body` has one variant per kind.
+version. Since 0.8.0 a phone writes only version 3 and reads versions 1, 2 and 3. The app
+never builds nor reads this JSON itself: it calls `encode_content` with an
+`OutgoingContent` record and `decode_content` with the plaintext and a `ContentBinding`;
+`body` has one variant per kind.
 
-### Version 2 (since 0.5.0)
+### Version 3 (since 0.8.0)
+
+The server no longer keeps conversations, so a content can no longer name one. Instead it
+names who wrote it and for whom, as Matrix does inside an Olm payload (`sender` and
+`recipient`, which a receiving client "MUST" check, discarding any event that does not
+comply):
+
+```json
+{"v":3,"kind":"text","sender_account_id":"…","recipient_account_id":"…","envelope_id":"…","client_message_id":"…","body":"…","pad":"   …"}
+```
+
+Fields come in this order: `v`, `kind`, `sender_account_id`, `recipient_account_id`,
+`envelope_id` (every kind but `typing`), the fields of the kind as in version 2, then
+`pad`. Every kind of version 2 exists in version 3 with the same fields, plus three:
+
+| `kind` | Its own fields | Channel |
+|---|---|---|
+| `contact_request` | `attestation` (1 to 512 bytes), `attestation_signature` (base58 of 64 bytes) | mailbox |
+| `contact_accept` | `request_id` (the envelope id of the request it accepts), `attestation`, `attestation_signature` | mailbox |
+| `contact_cancel` | `request_id` (the envelope id of the request it withdraws) | mailbox |
+
+The module checks only the form of an attestation here. Its alias comes out only of
+`verify_alias_attestation` (*Alias attestation*); no kind carries an alias of its own. The
+request id is the request's envelope id, so a cancellation or an acceptance names one
+request and cannot touch another that replaced it.
+
+The account ids are UUIDs written in lower case, and version 3 reads every id only in that
+spelling: an id in upper case is `InvalidContent`. No account key is part of the link:
+an account key changes at each rotation, so a content sealed before a contact saw the
+rotation would be lost, and nothing would be gained, since the session is already bound to
+the contact (0.7.1) and only the recipient can open it.
+
+`decode_content(json, binding)` first reads the form (`InvalidContent`,
+`UnsupportedContent` for a kind it does not know or a `v` above 3), then the link, and
+refuses any mismatch as `UnboundContent`, which the app drops without a trace (it still
+acknowledges the element and keeps the advanced session). `binding` is what the app knows
+of the element, every id a lower case UUID:
+
+- `channel`: `Mailbox` takes every kind but `typing`, `Websocket` only `typing`;
+- `envelope_id`: the mailbox element's id, required on the mailbox and equal to the
+  content's, absent on the websocket;
+- `sender_account_id`: the element's sender, which chose the session; equal to the
+  content's `sender_account_id`;
+- `my_account_id`: equal to the content's `recipient_account_id`;
+- `legacy_conversation_id`: see below; ignored for version 3.
+
+A version 1 or 2 content is read only on the mailbox, only when the app gives
+`legacy_conversation_id`, and only when it equals the content's `conversation_id`; a
+version 2 content's `envelope_id` must also equal the element's. The app gives that id
+only for an element deposited before the switch, and only the one kept for that contact.
+A legacy `typing` is refused on either channel.
+
+Padding is as before. A `typing` stays in the smallest bucket (256 bytes); every text, a
+receipt, a payment request and a cancellation are at 512 bytes, since the two account ids
+add about 115 bytes; a contact request or acceptance and an `account_rotation` at 1024.
+Encrypted on a confirmed session, a `typing` stays well under the 2048 characters the
+server relays.
+
+`vectors/v4.json` holds one content of each kind the app sends most, with its binding,
+contents that must be refused as `UnboundContent`, and a version 2 content read with and
+without its old conversation id.
+
+### Version 2 (since 0.5.0, read only since 0.8.0)
 
 Every element the server delivers is a closed envelope: the server no longer sees its
 kind, its target, its client id, nor whether it is a delivery or read receipt. Typing
@@ -381,7 +451,8 @@ Rules, all checked by the module, when written and when read:
   but this phone cannot show it. It is never read as another kind. A malformed content
   of a known kind is `InvalidContent`.
 
-What the module does not check, and the app does: that `conversation_id` and
+Since 0.8.0 the module itself checks the binding of a version 2 content (*Version 3*
+above). Up to 0.7.1, the app checked that `conversation_id` and
 `envelope_id` equal the element they came with (so a server can neither move an
 envelope to another conversation nor replay it under another id), that each kind came
 through its channel (the websocket accepts only `typing`, the mailbox everything but

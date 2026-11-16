@@ -11,6 +11,7 @@ no business logic: no networking, no storage, no payments.
 - [vectors/v1.json](vectors/v1.json): test vectors written by 0.4.0 (frozen).
 - [vectors/v2.json](vectors/v2.json): content version 2, one vector per kind (since 0.5.0; wallet card and payments since 0.6.0).
 - [vectors/v3.json](vectors/v3.json): the account key, the texts it signs, its rotation and the safety number v2 (since 0.7.0).
+- [vectors/v4.json](vectors/v4.json): alias attestations accepted and refused, and content version 3 with its binding (since 0.8.0).
 
 ## Build and test
 
@@ -63,12 +64,15 @@ compareScannedSafetyCode(me, contact, scannedText) // Match, Mismatch, OutdatedC
 val sent = account.encryptFor(remote, session, claimedKey, plaintext, pickleKey)
 val read = account.decryptFrom(remote, sessions, envelope, pickleKey)
 
-// Content (since 0.5.0): one variant per kind, version 2 written, versions 1 and 2 read.
-val json = encodeContent(Content(2u, conversationId, envelopeId, ContentBody.Text(clientId, "Salut", null, null)))
-when (val body = decodeContent(read.plaintext).body) {   // UnsupportedContent: authentic, not shown
-    is ContentBody.Receipt -> body.status                   // InvalidContent: kept as unreadable
-    is ContentBody.Typing -> body.state
-    is ContentBody.PaymentRequest -> body.amountBaseUnits   // since 0.6.0, with the wallet card
+// Content (since 0.8.0): version 3 written, bound to its sender, recipient, channel and envelope.
+val json = encodeContent(OutgoingContent(myAccountId, peerAccountId, envelopeId, ContentBody.Text(clientId, "Salut", null, null)))
+val binding = ContentBinding(ContentChannel.MAILBOX, element.id, element.senderAccountId, myAccountId, null)
+when (val body = decodeContent(read.plaintext, binding).body) { // UnboundContent: drop, still acknowledge
+    is ContentBody.Receipt -> body.status                          // UnsupportedContent: authentic, not shown
+    is ContentBody.Typing -> body.state                            // InvalidContent: kept as unreadable
+    is ContentBody.ContactRequest ->                               // the alias only from the attestation
+        verifyAliasAttestation(body.attestation, body.attestationSignature, trustedKeys,
+            element.senderAccountId, senderAccountPublicKey, element.createdAt)
     else -> Unit
 }
 ```
