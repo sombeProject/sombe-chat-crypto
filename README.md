@@ -37,6 +37,17 @@ SHA-256 to that release. The SOMBE app pins that SHA-256 and its
 build fails if the downloaded AAR does not match, so the app ships exactly the code
 published here.
 
+Since the release after 0.7.1, each AAR also carries a build provenance attestation: a
+statement signed through GitHub (Sigstore) that this file was built by this repository's
+`CI` workflow, from the commit of its tag. Anyone can check it with the GitHub CLI:
+
+```bash
+gh attestation verify sombe-chat-crypto-X.Y.Z.aar --repo sombeProject/sombe-chat-crypto
+```
+
+It shows that the AAR comes from this source and this workflow, not that the build can be
+reproduced bit for bit elsewhere.
+
 Using the AAR also needs JNA: `implementation 'net.java.dev.jna:jna:5.14.0@aar'`.
 
 ## Kotlin API

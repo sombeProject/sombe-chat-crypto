@@ -125,19 +125,32 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # To sign the provenance of the AAR: an OIDC token for a short-lived
+      # Sigstore certificate, and the right to store the attestation here.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: sombe-chat-crypto-aar
           path: dist
+      - name: Check the AAR against its SHA-256
+        run: cd dist && sha256sum -c *.sha256
+      # States, signed by GitHub, that this AAR was built by this workflow from
+      # this commit. Anyone checks it with `gh attestation verify`. A release
+      # is never published without it: this step comes first.
+      - name: Attest the provenance of the AAR
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*.aar
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd dist
           sha256sum -c *.sha256
-          notes="Android AAR (arm64-v8a, armeabi-v7a, x86_64) built from $GITHUB_SHA. SHA-256: $(cut -d' ' -f1 *.sha256)"
+          notes="Android AAR (arm64-v8a, armeabi-v7a, x86_64) built from $GITHUB_SHA. SHA-256: $(cut -d' ' -f1 *.sha256). Provenance: gh attestation verify $(ls *.aar) --repo $GITHUB_REPOSITORY"
           # The release may already exist when someone published it by hand on
           # github.com: then attach the files to it instead of failing.
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
