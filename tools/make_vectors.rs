@@ -203,7 +203,7 @@ fn write_v4() {
     let contents = content_vectors(&good, &good_signature);
 
     let vectors = json!({
-        "description": "SOMBE alias attestation test vectors (sombe-chat-crypto 0.8.0). Test seeds and test keys only: never use them for anything real. Every text is UTF-8, lines separated by \\n, no final \\n. Signatures are Ed25519 (deterministic), base58; public keys base58 of 32 bytes.",
+        "description": "SOMBE test vectors of sombe-chat-crypto 0.8.0: alias attestations (signing_keys, server_signs, accepted, refused) and content version 3 with its binding (content_v3: bound, unbound, legacy_read). Test seeds and test keys only: never use them for anything real. Every text is UTF-8, lines separated by \\n, no final \\n. Signatures are Ed25519 (deterministic), base58; public keys base58 of 32 bytes.",
         "signing_keys": [
             {"kid": "t1", "seed_hex": hex(&ATTESTATION_SEED_T1), "public_key": public_of(&ATTESTATION_SEED_T1), "trusted": true},
             {"kid": "t2", "seed_hex": hex(&ATTESTATION_SEED_T2), "public_key": public_of(&ATTESTATION_SEED_T2), "trusted": true},
