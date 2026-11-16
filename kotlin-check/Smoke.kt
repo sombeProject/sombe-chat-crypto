@@ -4,14 +4,17 @@ import org.sombe.chatcrypto.AccountRotationContent
 import org.sombe.chatcrypto.ChatAccountKey
 import org.sombe.chatcrypto.ChatCrypto
 import org.sombe.chatcrypto.ChatCryptoException
-import org.sombe.chatcrypto.Content
+import org.sombe.chatcrypto.ContentBinding
 import org.sombe.chatcrypto.ContentBody
+import org.sombe.chatcrypto.ContentChannel
 import org.sombe.chatcrypto.IdentityUpdate
+import org.sombe.chatcrypto.OutgoingContent
 import org.sombe.chatcrypto.PinnedIdentity
 import org.sombe.chatcrypto.PinnedOlm
 import org.sombe.chatcrypto.ReceiptStatus
 import org.sombe.chatcrypto.ScanResult
 import org.sombe.chatcrypto.StatementFields
+import org.sombe.chatcrypto.TrustedAttestationKey
 import org.sombe.chatcrypto.TypingState
 import org.sombe.chatcrypto.VerifiedIdentity
 import org.sombe.chatcrypto.checkIdentityUpdate
@@ -21,6 +24,7 @@ import org.sombe.chatcrypto.deriveAccountKey
 import org.sombe.chatcrypto.encodeContent
 import org.sombe.chatcrypto.proveRotation
 import org.sombe.chatcrypto.safetyNumber
+import org.sombe.chatcrypto.verifyAliasAttestation
 import org.sombe.chatcrypto.verifyIdentity
 import org.sombe.chatcrypto.verifyOneTimeKey
 import org.sombe.chatcrypto.verifyWalletCard
@@ -39,12 +43,16 @@ fun main() {
     bob.markKeysPublished()
     check(verifyOneTimeKey(bob.identityKeys(), otk), "one time key signature verifies")
 
+    // Since 0.8.0: content version 3, bound to its sender, recipient, channel and envelope.
     val conversation = "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01"
     val target = "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34"
-    val content = Content(
-        version = 2u,
-        conversationId = conversation,
-        envelopeId = "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+    val aliceAccountId = "a1a1a1a1-0000-4000-8000-0000000000a1"
+    val bobAccountId = "b2b2b2b2-0000-4000-8000-0000000000b2"
+    val envelope = "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78"
+    val content = OutgoingContent(
+        senderAccountId = aliceAccountId,
+        recipientAccountId = bobAccountId,
+        envelopeId = envelope,
         body = ContentBody.Text(
             clientMessageId = "1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12",
             body = "Salut ! Tu es rentré ?",
@@ -52,11 +60,24 @@ fun main() {
             replyExcerpt = null,
         ),
     )
+    val mailbox = ContentBinding(ContentChannel.MAILBOX, envelope, aliceAccountId, bobAccountId, null)
+    val websocket = ContentBinding(ContentChannel.WEBSOCKET, null, aliceAccountId, bobAccountId, null)
+    fun roundTrips(each: OutgoingContent): Boolean {
+        val binding = if (each.body is ContentBody.Typing) websocket else mailbox
+        val read = decodeContent(encodeContent(each), binding)
+        return read.version.toInt() == 3 && read.envelopeId == each.envelopeId && read.body == each.body
+    }
     val first = alice.encryptFor(bob.identityKeys(), null, otk, encodeContent(content), key)
     check(first.envelope.olmType.toInt() == 0, "first message is type 0")
 
     val received = bob.decryptFrom(alice.identityKeys(), emptyList(), first.envelope, key)
-    check(decodeContent(received.plaintext) == content, "bob reads alice's first message")
+    check(decodeContent(received.plaintext, mailbox).body == content.body, "bob reads alice's first message")
+    try {
+        decodeContent(received.plaintext, mailbox.copy(myAccountId = "c3c3c3c3-0000-4000-8000-0000000000c3"))
+        check(false, "a content for someone else must throw")
+    } catch (e: ChatCryptoException.UnboundContent) {
+        check(true, "a content sent again to someone else is UnboundContent")
+    }
 
     // One variant per kind, each read back as itself.
     val bodies = listOf(
@@ -65,14 +86,13 @@ fun main() {
         ContentBody.ReactionRemove("5a2d9c1f-8b6e-4d3f-8c7a-0e1f2a3b4d56", target),
         ContentBody.Delete("6b3e0d2a-9c7f-4e4a-8d8b-1f2a3b4c5e67", target),
         ContentBody.Payment("f4c19abd-8f6c-4b3d-9a7e-0c1d2e3f4a56", "Pour le marché"),
-        ContentBody.Receipt(ReceiptStatus.READ, content.envelopeId!!, "2026-11-04T12:34:56Z"),
+        ContentBody.Receipt(ReceiptStatus.READ, envelope, "2026-11-04T12:34:56Z"),
     )
     for (body in bodies) {
-        val each = content.copy(body = body)
-        check(decodeContent(encodeContent(each)) == each, "${body::class.simpleName} round trips")
+        check(roundTrips(content.copy(body = body)), "${body::class.simpleName} round trips")
     }
     val typing = content.copy(envelopeId = null, body = ContentBody.Typing(TypingState.START))
-    check(decodeContent(encodeContent(typing)) == typing, "a typing signal round trips")
+    check(roundTrips(typing), "a typing signal round trips")
     check(encodeContent(typing).encodeToByteArray().size == 256, "a typing signal is padded to 256 bytes")
     check(
         encodeContent(content.copy(body = bodies.last())).encodeToByteArray().size == 512,
@@ -89,18 +109,16 @@ fun main() {
         ContentBody.PaymentSent(null, signature, 1_500_000_000L, sol, 9u, null),
         ContentBody.PaymentRequestDeclined(requestId),
         ContentBody.PaymentRequestCancelled(requestId),
+        ContentBody.ContactRequest("SOMBE alias attestation v1", signature),
+        ContentBody.ContactAccept(requestId, "SOMBE alias attestation v1", signature),
+        ContentBody.ContactCancel(requestId),
     )
     for (body in newKinds) {
-        val each = content.copy(body = body)
-        check(decodeContent(encodeContent(each)) == each, "${body::class.simpleName} round trips")
+        check(roundTrips(content.copy(body = body)), "${body::class.simpleName} round trips")
     }
     check(
         encodeContent(content.copy(body = newKinds[2])).encodeToByteArray().size == 512,
         "a payment request is padded to 512 bytes",
-    )
-    check(
-        encodeContent(content.copy(body = newKinds[4])).encodeToByteArray().size == 256,
-        "a refusal is padded to 256 bytes",
     )
     try {
         encodeContent(content.copy(body = ContentBody.PaymentRequest(requestId, 0L, sol, 9u, null)))
@@ -109,31 +127,52 @@ fun main() {
         check(true, "an amount of 0 is refused")
     }
     try {
-        encodeContent(typing.copy(envelopeId = content.envelopeId))
+        encodeContent(typing.copy(envelopeId = envelope))
         check(false, "a typing signal with an envelope id must throw")
     } catch (e: ChatCryptoException.InvalidContent) {
         check(true, "a typing signal with an envelope id is refused")
     }
     try {
-        encodeContent(content.copy(version = 1u))
-        check(false, "version 1 must not be written")
-    } catch (e: ChatCryptoException.InvalidContent) {
-        check(true, "version 1 is never written")
+        decodeContent(encodeContent(typing), mailbox)
+        check(false, "a typing signal through the mailbox must throw")
+    } catch (e: ChatCryptoException.UnboundContent) {
+        check(true, "a typing signal through the mailbox is UnboundContent")
     }
     try {
-        decodeContent("""{"v":2,"kind":"poll","conversation_id":"$conversation","envelope_id":"$target"}""")
+        decodeContent(
+            """{"v":3,"kind":"poll","sender_account_id":"$aliceAccountId","recipient_account_id":"$bobAccountId","envelope_id":"$envelope"}""",
+            mailbox,
+        )
         check(false, "an unknown kind must throw")
     } catch (e: ChatCryptoException.UnsupportedContent) {
         check(true, "an unknown kind is UnsupportedContent")
     }
     val legacy = decodeContent(
-        """{"v":1,"conversation_id":"${conversation.uppercase()}","client_message_id":"c","kind":"payment","comment":"Merci"}"""
+        """{"v":1,"conversation_id":"${conversation.uppercase()}","client_message_id":"c","kind":"payment","comment":"Merci"}""",
+        mailbox.copy(legacyConversationId = conversation),
     )
     check(
-        legacy.version.toInt() == 1 && legacy.envelopeId == null && legacy.conversationId == conversation &&
-            legacy.body == ContentBody.Payment("c", "Merci"),
-        "a version 1 card is read, its comment as body, ids in lower case",
+        legacy.version.toInt() == 1 && legacy.envelopeId == null && legacy.body == ContentBody.Payment("c", "Merci"),
+        "a version 1 card is read with its old conversation id, its comment as body",
     )
+    try {
+        decodeContent("""{"v":1,"conversation_id":"$conversation","client_message_id":"c","kind":"payment"}""", mailbox)
+        check(false, "a version 1 content without its old conversation id must throw")
+    } catch (e: ChatCryptoException.UnboundContent) {
+        check(true, "a version 1 content without its old conversation id is UnboundContent")
+    }
+
+    // Since 0.8.0: an alias attestation is checked offline; any failure says nothing more.
+    try {
+        verifyAliasAttestation(
+            "SOMBE alias attestation v1", signature,
+            listOf(TrustedAttestationKey("t1", "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4")),
+            aliceAccountId, "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe", "2026-11-16T12:00:00.000Z",
+        )
+        check(false, "a malformed attestation must throw")
+    } catch (e: ChatCryptoException.InvalidAttestation) {
+        check(true, "a malformed attestation is InvalidAttestation")
+    }
     check(received.newSession && received.accountChanged, "a new inbound session was opened")
 
     val reply = bob.encryptFor(alice.identityKeys(), received.session, null, "Oui", key)
@@ -251,8 +290,7 @@ fun main() {
     } catch (e: ChatCryptoException.AccountChanged) {
         check(true, "another account key without proof is AccountChanged")
     }
-    val rotationContent = content.copy(body = ContentBody.AccountRotation(proof))
-    check(decodeContent(encodeContent(rotationContent)) == rotationContent, "AccountRotation round trips")
+    check(roundTrips(content.copy(body = ContentBody.AccountRotation(proof))), "AccountRotation round trips")
     check(proveRotation(bobWallet, 1u, 3u).proof.generation == 3.toUShort(), "a proof from generation 1 to 3")
     try {
         rotation.newKey.rotate(aliceWallet)

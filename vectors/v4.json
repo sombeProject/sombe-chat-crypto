@@ -435,5 +435,198 @@
       "deposited_at": "2026-02-30T00:00:00.000Z",
       "alias": null
     }
-  ]
+  ],
+  "content_v3": {
+    "bound": {
+      "text": {
+        "bytes": 512,
+        "plaintext": "{\"v\":3,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      "typing_start": {
+        "bytes": 256,
+        "plaintext": "{\"v\":3,\"kind\":\"typing\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"state\":\"start\",\"pad\":\"                                                                                       \"}",
+        "binding": {
+          "channel": "websocket",
+          "envelope_id": null,
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      "receipt_read": {
+        "bytes": 512,
+        "plaintext": "{\"v\":3,\"kind\":\"receipt\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"status\":\"read\",\"up_to_envelope_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"up_to_created_at\":\"2026-11-16T12:34:56.789Z\",\"pad\":\"                                                                                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      "payment_request": {
+        "bytes": 512,
+        "plaintext": "{\"v\":3,\"kind\":\"payment_request\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"amount_base_units\":\"1500000000\",\"mint\":\"So11111111111111111111111111111111111111112\",\"decimals\":9,\"note\":\"Pour le marché\",\"pad\":\"                                                                                                                         \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      "account_rotation": {
+        "bytes": 1024,
+        "plaintext": "{\"v\":3,\"kind\":\"account_rotation\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"old_account_public_key\":\"ASN6cYbgCioRtpRNg2NqqN3NuN5kRPhXiRRAedYNVwh3\",\"new_account_public_key\":\"Hj1RoiAUAfGzJngRtX6NypMhFV8WAYDzXPJicBT39qtB\",\"generation\":2,\"old_signature\":\"wmkikwS6qcWDJQkh3LhNmfwLZdDLXbLAFH2G2FqPoXkRTRmTGs2RqEWULg2aoiKAR7hmGn8C8GxuS4k9v4qTKZQ\",\"new_signature\":\"2sAJom8D1bSfRw5Pa9yn7YmT61Ay5FgdisDxvntdgvWkdYs9ai9z5SyZ9qPibZX1bUywfHMSjBf2dUhH1jb3Gdjw\",\"wallet_address\":\"FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF\",\"wallet_signature\":\"2BavaDVRj84U8GyUXums5Yhg8SigNaBM5X1eQqq7UDC4VtwUKUEXxACbZXWDx26QGvpP4ZN7HQKJbsZcKLg9f3F1\",\"pad\":\"                                                                                                                                                                                                                                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      "contact_request": {
+        "bytes": 1024,
+        "plaintext": "{\"v\":3,\"kind\":\"contact_request\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"attestation\":\"SOMBE alias attestation v1\\nkid:t1\\nalias:alice_01\\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\\nexpires:1794916800\",\"attestation_signature\":\"5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      "contact_accept": {
+        "bytes": 1024,
+        "plaintext": "{\"v\":3,\"kind\":\"contact_accept\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"attestation\":\"SOMBE alias attestation v1\\nkid:t1\\nalias:alice_01\\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\\nexpires:1794916800\",\"attestation_signature\":\"5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                     \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      "contact_cancel": {
+        "bytes": 512,
+        "plaintext": "{\"v\":3,\"kind\":\"contact_cancel\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"pad\":\"                                                                                                                                                                                                                                                      \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      }
+    },
+    "unbound": [
+      {
+        "name": "sent again by the server to another recipient",
+        "plaintext": "{\"v\":3,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "c3c3c3c3-0000-4000-8000-0000000000c3",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "presented as coming from another sender",
+        "plaintext": "{\"v\":3,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "c3c3c3c3-0000-4000-8000-0000000000c3",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "under another envelope id",
+        "plaintext": "{\"v\":3,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "a mailbox kind through the websocket",
+        "plaintext": "{\"v\":3,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "websocket",
+          "envelope_id": null,
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "a binding id in upper case",
+        "plaintext": "{\"v\":3,\"kind\":\"text\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"reply_to_message_id\":\"3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34\",\"reply_excerpt\":\"Dimanche à midi\",\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "A1A1A1A1-0000-4000-8000-0000000000A1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "a typing signal through the mailbox",
+        "plaintext": "{\"v\":3,\"kind\":\"typing\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"state\":\"start\",\"pad\":\"                                                                                       \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "version 2 without the old conversation id",
+        "plaintext": "{\"v\":2,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"pad\":\"                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": null
+        }
+      },
+      {
+        "name": "version 2 with the old conversation id of another contact",
+        "plaintext": "{\"v\":2,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"pad\":\"                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "legacy_conversation_id": "c3c3c3c3-0000-4000-8000-0000000000c3"
+        }
+      }
+    ],
+    "legacy_read": {
+      "plaintext": "{\"v\":2,\"kind\":\"text\",\"conversation_id\":\"0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"client_message_id\":\"1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12\",\"body\":\"Salut ! Tu es rentré ?\",\"pad\":\"                        \"}",
+      "binding": {
+        "channel": "mailbox",
+        "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+        "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+        "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+        "legacy_conversation_id": "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01"
+      },
+      "version": 2
+    }
+  }
 }

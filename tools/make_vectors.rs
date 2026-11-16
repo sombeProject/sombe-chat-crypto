@@ -11,7 +11,11 @@
 //! generators are in the history of this file. Never use these ids for anything real.
 
 use serde_json::{json, Value};
-use sombe_chat_crypto::{verify_alias_attestation, TrustedAttestationKey};
+use sombe_chat_crypto::{
+    decode_content, encode_content, prove_rotation, verify_alias_attestation, AccountRotationContent,
+    ContentBinding, ContentBody, ContentChannel, OutgoingContent, ReceiptStatus, TrustedAttestationKey,
+    TypingState,
+};
 use vodozemac::Ed25519SecretKey;
 
 /// A test account key seed (the one of vectors/v3.json).
@@ -196,6 +200,8 @@ fn write_v4() {
         })
         .collect();
 
+    let contents = content_vectors(&good, &good_signature);
+
     let vectors = json!({
         "description": "SOMBE alias attestation test vectors (sombe-chat-crypto 0.8.0). Test seeds and test keys only: never use them for anything real. Every text is UTF-8, lines separated by \\n, no final \\n. Signatures are Ed25519 (deterministic), base58; public keys base58 of 32 bytes.",
         "signing_keys": [
@@ -214,8 +220,184 @@ fn write_v4() {
         },
         "accepted": accepted,
         "refused": refused,
+        "content_v3": contents,
     });
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vectors/v4.json");
     std::fs::write(&path, serde_json::to_string_pretty(&vectors).unwrap() + "\n").unwrap();
     println!("wrote {}", path.display());
+}
+
+const SENDER: &str = "a1a1a1a1-0000-4000-8000-0000000000a1";
+const RECIPIENT: &str = "b2b2b2b2-0000-4000-8000-0000000000b2";
+const STRANGER: &str = "c3c3c3c3-0000-4000-8000-0000000000c3";
+const CONTENT_ENVELOPE: &str = "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78";
+const CONTENT_TARGET: &str = "3e0b7a9d-6f4c-4b1d-8a5e-8c9d0e1f2b34";
+const CONTENT_CLIENT: &str = "1c8f5e7b-4d2a-4f9b-8e3c-6a7b8d9e0f12";
+const CONTENT_REQUEST: &str = "27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89";
+const OLD_CONVERSATION: &str = "0b7e4d6a-3c1f-4e8a-9d2b-5f6a7c8e9d01";
+
+fn binding_json(b: &ContentBinding) -> Value {
+    json!({
+        "channel": match b.channel { ContentChannel::Mailbox => "mailbox", ContentChannel::Websocket => "websocket" },
+        "envelope_id": b.envelope_id,
+        "sender_account_id": b.sender_account_id,
+        "my_account_id": b.my_account_id,
+        "legacy_conversation_id": b.legacy_conversation_id,
+    })
+}
+
+/// Every version 3 kind the app sends most, bound to its element; then contents that
+/// must be refused as `UnboundContent`, and a version 2 content of vectors/v2.json read
+/// with and without the old conversation id.
+fn content_vectors(attestation: &str, attestation_signature: &str) -> Value {
+    let mailbox = ContentBinding {
+        channel: ContentChannel::Mailbox,
+        envelope_id: Some(CONTENT_ENVELOPE.into()),
+        sender_account_id: SENDER.into(),
+        my_account_id: RECIPIENT.into(),
+        legacy_conversation_id: None,
+    };
+    let websocket =
+        ContentBinding { channel: ContentChannel::Websocket, envelope_id: None, ..mailbox.clone() };
+    let proven = prove_rotation(WALLET_SEED.to_vec(), 1, 2).unwrap();
+    let kinds: Vec<(&str, ContentBody)> = vec![
+        (
+            "text",
+            ContentBody::Text {
+                client_message_id: CONTENT_CLIENT.into(),
+                body: "Salut ! Tu es rentré ?".into(),
+                reply_to_message_id: Some(CONTENT_TARGET.into()),
+                reply_excerpt: Some("Dimanche à midi".into()),
+            },
+        ),
+        ("typing_start", ContentBody::Typing { state: TypingState::Start }),
+        (
+            "receipt_read",
+            ContentBody::Receipt {
+                status: ReceiptStatus::Read,
+                up_to_envelope_id: CONTENT_TARGET.into(),
+                up_to_created_at: "2026-11-16T12:34:56.789Z".into(),
+            },
+        ),
+        (
+            "payment_request",
+            ContentBody::PaymentRequest {
+                request_id: CONTENT_REQUEST.into(),
+                amount_base_units: 1_500_000_000,
+                mint: "So11111111111111111111111111111111111111112".into(),
+                decimals: 9,
+                note: Some("Pour le marché".into()),
+            },
+        ),
+        (
+            "account_rotation",
+            ContentBody::AccountRotation {
+                rotation: AccountRotationContent {
+                    old_account_public_key: proven.proof.old_account_public_key.clone(),
+                    new_account_public_key: proven.proof.new_account_public_key.clone(),
+                    generation: proven.proof.generation,
+                    old_signature: proven.proof.old_signature.clone(),
+                    new_signature: proven.proof.new_signature.clone(),
+                    wallet_address: proven.card.wallet_address.clone(),
+                    wallet_signature: proven.card.wallet_signature.clone(),
+                },
+            },
+        ),
+        (
+            "contact_request",
+            ContentBody::ContactRequest {
+                attestation: attestation.into(),
+                attestation_signature: attestation_signature.into(),
+            },
+        ),
+        (
+            "contact_accept",
+            ContentBody::ContactAccept {
+                request_id: CONTENT_REQUEST.into(),
+                attestation: attestation.into(),
+                attestation_signature: attestation_signature.into(),
+            },
+        ),
+        ("contact_cancel", ContentBody::ContactCancel { request_id: CONTENT_REQUEST.into() }),
+    ];
+    let mut bound = serde_json::Map::new();
+    let mut text_plaintext = String::new();
+    for (name, body) in kinds {
+        let typing = matches!(body, ContentBody::Typing { .. });
+        let binding = if typing { websocket.clone() } else { mailbox.clone() };
+        let content = OutgoingContent {
+            sender_account_id: SENDER.into(),
+            recipient_account_id: RECIPIENT.into(),
+            envelope_id: binding.envelope_id.clone(),
+            body: body.clone(),
+        };
+        let plaintext = encode_content(content).unwrap();
+        let read = decode_content(plaintext.clone(), binding.clone()).unwrap();
+        assert_eq!((read.version, read.body), (3, body), "{name}");
+        if name == "text" {
+            text_plaintext = plaintext.clone();
+        }
+        bound.insert(
+            name.into(),
+            json!({ "bytes": plaintext.len(), "plaintext": plaintext, "binding": binding_json(&binding) }),
+        );
+    }
+
+    let unbound_cases = vec![
+        (
+            "sent again by the server to another recipient",
+            ContentBinding { my_account_id: STRANGER.into(), ..mailbox.clone() },
+        ),
+        (
+            "presented as coming from another sender",
+            ContentBinding { sender_account_id: STRANGER.into(), ..mailbox.clone() },
+        ),
+        (
+            "under another envelope id",
+            ContentBinding { envelope_id: Some(CONTENT_TARGET.into()), ..mailbox.clone() },
+        ),
+        ("a mailbox kind through the websocket", websocket.clone()),
+        (
+            "a binding id in upper case",
+            ContentBinding { sender_account_id: SENDER.to_uppercase(), ..mailbox.clone() },
+        ),
+    ];
+    let typing_plaintext = s_of(&bound["typing_start"]["plaintext"]);
+    let mut unbound: Vec<Value> = unbound_cases
+        .into_iter()
+        .map(|(name, binding)| {
+            assert!(decode_content(text_plaintext.clone(), binding.clone()).is_err(), "{name}");
+            json!({ "name": name, "plaintext": text_plaintext, "binding": binding_json(&binding) })
+        })
+        .collect();
+    assert!(decode_content(typing_plaintext.clone(), mailbox.clone()).is_err());
+    unbound.push(json!({ "name": "a typing signal through the mailbox", "plaintext": typing_plaintext, "binding": binding_json(&mailbox) }));
+
+    let v2: Value = serde_json::from_str(include_str!("../vectors/v2.json")).unwrap();
+    let v2_text = s_of(&v2["v2"]["text"]["plaintext"]);
+    let v2_envelope =
+        serde_json::from_str::<Value>(&v2_text).unwrap()["envelope_id"].as_str().unwrap().to_owned();
+    let legacy = ContentBinding {
+        envelope_id: Some(v2_envelope),
+        legacy_conversation_id: Some(OLD_CONVERSATION.into()),
+        ..mailbox.clone()
+    };
+    assert_eq!(decode_content(v2_text.clone(), legacy.clone()).unwrap().version, 2);
+    let without = ContentBinding { legacy_conversation_id: None, ..legacy.clone() };
+    let other = ContentBinding { legacy_conversation_id: Some(STRANGER.into()), ..legacy.clone() };
+    for b in [&without, &other] {
+        assert!(decode_content(v2_text.clone(), b.clone()).is_err());
+    }
+    unbound.push(json!({ "name": "version 2 without the old conversation id", "plaintext": v2_text, "binding": binding_json(&without) }));
+    unbound.push(json!({ "name": "version 2 with the old conversation id of another contact", "plaintext": v2_text, "binding": binding_json(&other) }));
+
+    json!({
+        "bound": bound,
+        "unbound": unbound,
+        "legacy_read": { "plaintext": v2_text, "binding": binding_json(&legacy), "version": 2 },
+    })
+}
+
+fn s_of(v: &Value) -> String {
+    v.as_str().unwrap().to_owned()
 }
