@@ -13,6 +13,11 @@ compare. Nothing here invents new cryptography: the account key uses HKDF-SHA256
 (RFC 5869), Ed25519 and XChaCha20-Poly1305, from the RustCrypto crates `hkdf` and
 `chacha20poly1305`.
 
+0.7.1 changes no text and no signature: it refuses dates that do not exist or lie far
+ahead, keys written with base64 padding, and base58 fields too long to be a key or a
+signature, and it binds each stored session to its contact. What a 0.7.0 phone writes is
+still read, and the vectors are unchanged.
+
 `vectors/v1.json` holds test vectors written by 0.4.0 (its identity statement and safety
 number are no longer read since 0.7.0; its keys, sessions and version 1 contents still
 are), `vectors/v2.json` those of content version 2 (since 0.5.0; wallet card and payment
@@ -180,14 +185,22 @@ key first signs the first six lines (the body), so the identity vouches for the 
 key: without it, any account key could sign a statement naming someone else's keys. The
 account key then signs the whole seven line text (base58). `sign_identity_statement(account,
 created_at)` does both and returns the text, `identity_signature` and `account_signature`;
-`created_at` that is not this ISO 8601 UTC form is `InvalidStatement`.
+`created_at` that is not this ISO 8601 UTC form is `InvalidStatement`. Since 0.7.1 it must
+also be a date and a time that exist (month 1 to 12, a day of that month, hour up to 23,
+minute and second up to 59): `2026-02-30T00:00:00Z` is `InvalidStatement`, when signed and
+when verified.
 
 The server stores and returns only the fields, never the text. A verifier calls
 `verify_identity` with those fields (`account_public_key`, `curve25519_key`,
 `ed25519_key`, `created_at`, `identity_signature`, `account_signature`): the module
 rebuilds the seven lines itself, checks `identity_signature` over the first six with the
 `ed25519` key, then `account_signature` over the seven with `account_public_key`. The app
-never builds a statement text. Statements v1 (0.2.0 and earlier) and v2 (signed by the
+never builds a statement text. Since 0.7.1 the two keys and `identity_signature` must be
+written as vodozemac writes them, standard base64 without padding (`InvalidKey` for a key,
+`InvalidSignature` for the signature, otherwise): the text is signed and compared as
+written, so the same keys with a final `=` would be another identity with another safety
+number. The same holds for a one time key, its signature and the identity key that signed
+it. Statements v1 (0.2.0 and earlier) and v2 (signed by the
 wallet, up to 0.6.0) are no longer read.
 
 The server checks the statement before accepting an identity, and refuses one that is
@@ -220,6 +233,15 @@ whatever the gap, as long as `k` is the pinned key. No card and no answer from t
 ever changes the pinned account key on its own.
 
 `created` values compare in time order; a value without milliseconds counts as `.000`.
+
+Since 0.7.1 an identity is pinned only if its `created` is at most 24 hours after this
+phone's clock, the bound the server applies, checked again because the server is not
+trusted. Without it, whoever held an account key could publish an identity dated at the end
+of time, and every later identity of the contact, a proven rotation included, would be
+refused for ever. `New` and `Changed` become `InvalidStatement`; an identity that is not
+strictly later stays `StaleIdentity`; for another account key it is one more rotation
+condition, so `AccountChanged`. `Unchanged` is never refused. A phone whose clock is more
+than 24 hours late refuses fresh identities until its clock is set.
 
 ## One time keys
 
@@ -514,6 +536,19 @@ Up to 0.4.0 the plaintext was this JSON. Since 0.5.0 it is still read, never wri
   one was at most 40 messages ahead of it; its key is lost otherwise.
 - Accounts and sessions are stored only on the phone, as vodozemac pickles encrypted
   with a 32 byte key, and are never backed up or sent anywhere.
+- Since 0.7.1 a stored session opens only for the contact it was made with. Its pickle is
+  the text `v2:` followed by the vodozemac pickle, encrypted not with the pickle key but
+  with `HKDF-SHA256(IKM = pickle key, salt = empty, info = "sombe:session_pickle:v2" ‖ the
+  contact's curve25519 key (32 bytes), L = 32)`. `encrypt_for` and `decrypt_from` draw that
+  key from the `remote` they are given, so a session passed with another contact is
+  `InvalidPickle` (or `NoMatchingSession` when decrypting a following message): a mix up in
+  the app can no longer encrypt to the wrong person. A pickle without `v2:`, written by
+  0.7.0 or earlier, still opens with the pickle key and comes back bound. A session stored
+  by 0.7.1 cannot be read by 0.7.0.
+- The app must still never use the same stored session twice: two messages encrypted from
+  one stored session share their key and IV. It writes the advanced session in the same
+  transaction as the message, one encryption at a time, and keeps its database out of
+  Android backups.
 
 ## Safety number
 

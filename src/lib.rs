@@ -9,6 +9,8 @@
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use hkdf::Hkdf;
+use sha2::Sha256;
 use vodozemac::olm::{Account, AccountPickle, OlmMessage, Session, SessionConfig, SessionPickle};
 use vodozemac::{base64_decode, base64_encode, Curve25519PublicKey};
 use zeroize::Zeroizing;
@@ -28,6 +30,11 @@ uniffi::setup_scaffolding!();
 
 /// Protocol id written in every envelope and identity statement.
 pub const PROTOCOL: &str = "olm-v1";
+
+/// Starts the pickle of a session bound to its contact (since 0.7.1). A pickle without it
+/// was written by 0.7.0 or earlier, under the pickle key itself.
+const BOUND_SESSION_PREFIX: &str = "v2:";
+const SESSION_KEY_INFO: &[u8] = b"sombe:session_pickle:v2";
 
 #[derive(uniffi::Error, thiserror::Error, Debug, PartialEq, Eq)]
 pub enum ChatCryptoError {
@@ -191,7 +198,8 @@ pub struct Envelope {
     pub ciphertext: String,
 }
 
-/// A session as the app stores it: its id and its encrypted pickle.
+/// A session as the app stores it: its id and its encrypted pickle. Since 0.7.1 the pickle
+/// opens only for the contact (curve25519 key) the session was made with.
 #[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
 pub struct StoredSession {
     pub session_id: String,
@@ -281,16 +289,13 @@ impl ChatCrypto {
         pickle_key: Vec<u8>,
     ) -> Result<EncryptResult> {
         let key = pickle_key_array(pickle_key)?;
+        let remote_curve = curve_key(&remote.curve25519_key)?;
         let mut session = match (session, claimed_key) {
-            (Some(stored), _) => restore_session(&stored, &key)?,
+            (Some(stored), _) => restore_session(&stored, &key, &remote_curve)?,
             (None, Some(claimed)) => {
                 let one_time_key = statement::verify_one_time_key(&remote.ed25519_key, &claimed)?;
                 self.account()
-                    .create_outbound_session(
-                        SessionConfig::version_1(),
-                        curve_key(&remote.curve25519_key)?,
-                        one_time_key,
-                    )
+                    .create_outbound_session(SessionConfig::version_1(), remote_curve, one_time_key)
                     .map_err(|e| ChatCryptoError::SessionCreation { reason: e.to_string() })?
             }
             (None, None) => {
@@ -309,7 +314,7 @@ impl ChatCrypto {
                 olm_type: olm_type as u8,
                 ciphertext: base64_encode(bytes),
             },
-            session: store_session(&session, &key),
+            session: store_session(&session, &key, &remote_curve),
         })
     }
 
@@ -325,16 +330,16 @@ impl ChatCrypto {
     ) -> Result<DecryptResult> {
         let key = pickle_key_array(pickle_key)?;
         let message = parse_envelope(&envelope)?;
+        let remote_curve = curve_key(&remote.curve25519_key)?;
 
         if let OlmMessage::PreKey(pre_key) = &message {
-            let remote_curve = curve_key(&remote.curve25519_key)?;
             if pre_key.identity_key() != remote_curve {
                 return Err(ChatCryptoError::InvalidMessage {
                     reason: "sender identity does not match".to_owned(),
                 });
             }
             if let Some(stored) = sessions.iter().find(|s| s.session_id == pre_key.session_id()) {
-                return decrypt_with(stored, &message, &key);
+                return decrypt_with(stored, &message, &key, &remote_curve);
             }
             let created = self
                 .account()
@@ -342,14 +347,14 @@ impl ChatCrypto {
                 .map_err(|e| ChatCryptoError::SessionCreation { reason: e.to_string() })?;
             return Ok(DecryptResult {
                 plaintext: utf8(created.plaintext)?,
-                session: store_session(&created.session, &key),
+                session: store_session(&created.session, &key, &remote_curve),
                 new_session: true,
                 account_changed: true,
             });
         }
 
         for stored in &sessions {
-            if let Ok(result) = decrypt_with(stored, &message, &key) {
+            if let Ok(result) = decrypt_with(stored, &message, &key, &remote_curve) {
                 return Ok(result);
             }
         }
@@ -474,13 +479,18 @@ fn sign_key(
     SignedOneTimeKey { key_id, public_key, signature, is_fallback }
 }
 
-fn decrypt_with(stored: &StoredSession, message: &OlmMessage, key: &[u8; 32]) -> Result<DecryptResult> {
-    let mut session = restore_session(stored, key)?;
+fn decrypt_with(
+    stored: &StoredSession,
+    message: &OlmMessage,
+    key: &[u8; 32],
+    remote: &Curve25519PublicKey,
+) -> Result<DecryptResult> {
+    let mut session = restore_session(stored, key, remote)?;
     let plaintext =
         session.decrypt(message).map_err(|e| ChatCryptoError::Decryption { reason: e.to_string() })?;
     Ok(DecryptResult {
         plaintext: utf8(plaintext)?,
-        session: store_session(&session, key),
+        session: store_session(&session, key, remote),
         new_session: false,
         account_changed: false,
     })
@@ -496,14 +506,33 @@ fn parse_envelope(envelope: &Envelope) -> Result<OlmMessage> {
         .map_err(|e| ChatCryptoError::InvalidMessage { reason: e.to_string() })
 }
 
-fn restore_session(stored: &StoredSession, key: &[u8; 32]) -> Result<Session> {
-    let pickle =
-        SessionPickle::from_encrypted(&stored.pickle, key).map_err(|_| ChatCryptoError::InvalidPickle)?;
+/// Opens a stored session for `remote`. A bound pickle (since 0.7.1) opens only under the
+/// key drawn for that contact, so a session passed with another contact is `InvalidPickle`.
+/// A pickle written by 0.7.0 or earlier opens under the pickle key, and is bound when stored.
+fn restore_session(stored: &StoredSession, key: &[u8; 32], remote: &Curve25519PublicKey) -> Result<Session> {
+    let pickle = match stored.pickle.strip_prefix(BOUND_SESSION_PREFIX) {
+        Some(bound) => SessionPickle::from_encrypted(bound, &session_key(key, remote)),
+        None => SessionPickle::from_encrypted(&stored.pickle, key),
+    }
+    .map_err(|_| ChatCryptoError::InvalidPickle)?;
     Ok(Session::from_pickle(pickle))
 }
 
-fn store_session(session: &Session, key: &[u8; 32]) -> StoredSession {
-    StoredSession { session_id: session.session_id(), pickle: session.pickle().encrypt(key) }
+fn store_session(session: &Session, key: &[u8; 32], remote: &Curve25519PublicKey) -> StoredSession {
+    let pickle = session.pickle().encrypt(&session_key(key, remote));
+    StoredSession { session_id: session.session_id(), pickle: format!("{BOUND_SESSION_PREFIX}{pickle}") }
+}
+
+/// The key of one contact's session pickles: HKDF-SHA256 of the pickle key, with the
+/// contact's curve25519 key in the info.
+fn session_key(key: &[u8; 32], remote: &Curve25519PublicKey) -> Zeroizing<[u8; 32]> {
+    let mut info = SESSION_KEY_INFO.to_vec();
+    info.extend_from_slice(remote.as_bytes());
+    let mut out = Zeroizing::new([0u8; 32]);
+    Hkdf::<Sha256>::new(None, key)
+        .expand(&info, out.as_mut_slice())
+        .expect("32 bytes is a valid HKDF length");
+    out
 }
 
 fn pickle_key_array(pickle_key: Vec<u8>) -> Result<Zeroizing<[u8; 32]>> {

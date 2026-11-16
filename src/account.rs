@@ -338,14 +338,23 @@ pub(crate) fn public_key(text: &str, name: &str) -> Result<Ed25519PublicKey> {
     Ed25519PublicKey::from_slice(&bytes).map_err(|e| invalid_key(e.to_string()))
 }
 
-fn signature(text: &str) -> Option<Ed25519Signature> {
+pub(crate) fn signature(text: &str) -> Option<Ed25519Signature> {
     canonical_base58(text, SIGNATURE_BYTES).and_then(|bytes| Ed25519Signature::from_slice(&bytes).ok())
 }
 
 /// The bytes of `text` if it is the base58 form of exactly `size` bytes.
 fn canonical_base58(text: &str, size: usize) -> Option<Vec<u8>> {
+    // Base58 decoding is quadratic: a text too long for `size` bytes is refused unread.
+    if text.len() > max_base58_chars(size) {
+        return None;
+    }
     let bytes = bs58::decode(text).into_vec().ok()?;
     (bytes.len() == size && bs58::encode(&bytes).into_string() == text).then_some(bytes)
+}
+
+/// More characters than the base58 form of `size` bytes ever has (44 for 32, 88 for 64).
+pub(crate) const fn max_base58_chars(size: usize) -> usize {
+    size * 138 / 100 + 1
 }
 
 fn derive_seed(wallet: &[u8; SEED_BYTES], generation: u16) -> Zeroizing<[u8; SEED_BYTES]> {

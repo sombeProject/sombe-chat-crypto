@@ -18,7 +18,7 @@
 
 use serde_json::{Map, Value};
 
-use crate::account::{AccountRotationContent, LAST_GENERATION};
+use crate::account::{max_base58_chars, AccountRotationContent, LAST_GENERATION};
 use crate::ChatCryptoError;
 
 /// The only version `encode_content` writes.
@@ -699,6 +699,10 @@ fn comment(body: &str, required: bool) -> Result<String, ChatCryptoError> {
 /// The base58 form of exactly `bytes` bytes. Base58 has one spelling per byte string, so
 /// the text is returned as given.
 fn base58(text: &str, bytes: usize, name: &str) -> Result<String, ChatCryptoError> {
+    // Base58 decoding is quadratic: a text too long for `bytes` bytes is refused unread.
+    if text.len() > max_base58_chars(bytes) {
+        return Err(invalid(&format!("{name} is not {bytes} bytes")));
+    }
     match bs58::decode(text).into_vec() {
         Ok(decoded) if decoded.len() == bytes => Ok(text.to_owned()),
         Ok(_) => Err(invalid(&format!("{name} is not {bytes} bytes"))),
