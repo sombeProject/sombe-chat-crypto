@@ -100,7 +100,7 @@ fun main() {
     }
     val typing = content.copy(envelopeId = null, body = ContentBody.Typing(TypingState.START))
     check(roundTrips(typing), "a typing signal round trips")
-    check(encodeContent(typing).encodeToByteArray().size == 256, "a typing signal is padded to 256 bytes")
+    check(encodeContent(typing).encodeToByteArray().size == 512, "a typing signal is padded to 512 bytes")
     check(
         encodeContent(content.copy(body = bodies.last())).encodeToByteArray().size == 512,
         "a receipt is padded to 512 bytes",
@@ -124,8 +124,8 @@ fun main() {
         check(roundTrips(content.copy(body = body)), "${body::class.simpleName} round trips")
     }
     check(
-        encodeContent(content.copy(body = newKinds[2])).encodeToByteArray().size == 512,
-        "a payment request is padded to 512 bytes",
+        encodeContent(content.copy(body = newKinds[2])).encodeToByteArray().size == 1024,
+        "a payment request with a note is padded to 1024 bytes",
     )
     try {
         encodeContent(content.copy(body = ContentBody.PaymentRequest(requestId, 0L, sol, 9u, null)))
