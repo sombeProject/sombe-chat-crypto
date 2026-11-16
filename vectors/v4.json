@@ -1,0 +1,439 @@
+{
+  "description": "SOMBE alias attestation test vectors (sombe-chat-crypto 0.8.0). Test seeds and test keys only: never use them for anything real. Every text is UTF-8, lines separated by \\n, no final \\n. Signatures are Ed25519 (deterministic), base58; public keys base58 of 32 bytes.",
+  "signing_keys": [
+    {
+      "kid": "t1",
+      "seed_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+      "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+      "trusted": true
+    },
+    {
+      "kid": "t2",
+      "seed_hex": "2222222222222222222222222222222222222222222222222222222222222222",
+      "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+      "trusted": true
+    },
+    {
+      "kid": "t9",
+      "seed_hex": "9999999999999999999999999999999999999999999999999999999999999999",
+      "public_key": "4So8kA2BCfQD4zhvfYVqhWiyrXBgRPNRuoicJdh9G36c",
+      "trusted": false
+    }
+  ],
+  "server_signs": {
+    "kid": "t1",
+    "alias": "alice_01",
+    "account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+    "account": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+    "expires": 1794916800,
+    "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+    "signature": "5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd"
+  },
+  "accepted": [
+    {
+      "name": "valid",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": "alice_01"
+    },
+    {
+      "name": "deposited exactly at expires",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T12:00:00.000Z",
+      "alias": "alice_01"
+    },
+    {
+      "name": "signed by the second trusted key",
+      "text": "SOMBE alias attestation v1\nkid:t2\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "48shMrmocUfxqX8yCLoj6fcJhVTCDvzYo5CxdhJYUgLtEs4cvJkHdPgwAagZRPQK68yKQybxX4wWuYurWJqP98ar",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": "alice_01"
+    },
+    {
+      "name": "deposited_at without milliseconds",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59Z",
+      "alias": "alice_01"
+    }
+  ],
+  "refused": [
+    {
+      "name": "deposited one millisecond after expires",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T12:00:00.001Z",
+      "alias": null
+    },
+    {
+      "name": "replay: carried by another account's envelope",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+      "sender_account_public_key": "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "sender account key differs from the attested one",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "sender account_id differs from the attested one",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "alias changed after signing",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_02\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "signature does not hold",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "4iBkVmJ3n3uJbUL1Nnvd3wwi7Q4yAFUiE11MLquQDKSWDJmDzJq7Kog4Rw9kfeMXBmv2i2V4fCWsREWd2BNsWQ14",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "unknown kid",
+      "text": "SOMBE alias attestation v1\nkid:t9\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "Mw8yQ5CFqqTEtj1B2r5dtRnes8ZvTuaHhhNkSpy3u4ZToiV1JntjPSQ8XK8T6Y2eJtqsYjNxw37VCoxQ1UsMTD2",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "known kid, signed by another key",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "z71v1suZTszCd6eCp53nDGYjYET1fLmeKPyZ1cKiHr4zszpo2x8Xej5guHY3k6TLMGTCJDaycKBs2u26UKy3Nfj",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "alias with a newline, signed",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice\nbob\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "4bF4C3Y48AitXHrPNvoAV3KF84JaVRM26ze83NMkknZvEQ18YpZsHbMEqmX3S8bq8ssd7t92ZVbf1ji2mU5LMTyb",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "alias in upper case, signed",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:Alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "w7VCRpBxEAy256nW7HZJ5FVpjFVSR73qnnm8pRJWbUWSyyM25CfBp7gRqTN25FdxtyTxf5SXpimifMCBWqFn8g8",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "alias too short, signed",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:al\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "5AeRzLTmJ1hLZSuRUvUXsnQ5ZthykTxKgjw5fig5NcF8uFtKkwQAHGV2ypq8R2GkUbvxjkwGE4YR7erT4tjNoyvZ",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "CRLF line ends, signed",
+      "text": "SOMBE alias attestation v1\r\nkid:t1\r\nalias:alice_01\r\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\r\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\r\nexpires:1794916800",
+      "signature": "4Kwcb1AcUV5Dt7Pta9B94g8rtnUAjsKg4YENqMexHgABRAPXcYBgnfom4fYdp6MdmDhnVh4xGiAuqzzZ2GTFkPyn",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "final newline, signed",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800\n",
+      "signature": "cQYPkMHnd1ygj57B9ThUGJGpea7wtcstDab4QZJQiaRbpXG2CBThbQkze3L1wYBctMMtAvqGoBvQmavnA9ecVob",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "expires with a leading zero, signed",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:01794916800",
+      "signature": "5jZ12coGHG18zCgUejhDFAU8vR11inS7Dx1eUMTjqkXYzaTh5Z1NboUrFWeQyWpEJdjPTdZ6srk6HRAKvhmM7eMM",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "account_id in upper case, signed",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8F14E45F-CEEA-4C6B-9A3D-2B1C0D9E8F7A\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "3WDi7yZECTmmmEa4ZHxPP5KewaYQ32YNMeaGYp5tocDx2xDrUaTzJ7kCYujNnaMwBjB4hpuKsvg3GwMK6yuu1fVY",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "the same kid twice in trusted_keys",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        },
+        {
+          "kid": "t1",
+          "public_key": "4So8kA2BCfQD4zhvfYVqhWiyrXBgRPNRuoicJdh9G36c"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-11-17T11:59:59.999Z",
+      "alias": null
+    },
+    {
+      "name": "deposited_at is not a date that exists",
+      "text": "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\nexpires:1794916800",
+      "signature": "5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd",
+      "trusted_keys": [
+        {
+          "kid": "t1",
+          "public_key": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "kid": "t2",
+          "public_key": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"
+        }
+      ],
+      "sender_account_id": "8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a",
+      "sender_account_public_key": "3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe",
+      "deposited_at": "2026-02-30T00:00:00.000Z",
+      "alias": null
+    }
+  ]
+}

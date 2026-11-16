@@ -16,6 +16,7 @@ use vodozemac::{base64_decode, base64_encode, Curve25519PublicKey};
 use zeroize::Zeroizing;
 
 mod account;
+mod attestation;
 mod content;
 mod safety;
 mod statement;
@@ -24,6 +25,7 @@ pub use account::{
     AccountRotation, AccountRotationContent, ChatAccountKey, DerivedAccount, ProvenRotation, RotationProof,
     SignedStatement, WalletCard,
 };
+pub use attestation::TrustedAttestationKey;
 pub use content::{Content, ContentBody, ReceiptStatus, TypingState};
 
 uniffi::setup_scaffolding!();
@@ -86,6 +88,10 @@ pub enum ChatCryptoError {
     /// a valid rotation proof (since 0.7.0): pause the contact until the safety codes match.
     #[error("the contact's account key changed without proof")]
     AccountChanged,
+    /// An alias attestation that does not hold (since 0.8.0): its form, its key, its
+    /// signature, its account or its date. Never more detail.
+    #[error("invalid alias attestation")]
+    InvalidAttestation,
 }
 
 type Result<T> = std::result::Result<T, ChatCryptoError>;
@@ -451,6 +457,29 @@ pub fn one_time_key_signed_text(key: SignedOneTimeKey) -> String {
 
 /// The padded JSON of a version 2 content. Refuses any other version, and any content
 /// whose shape does not match its kind (`InvalidContent`).
+/// Checks an alias attestation carried by a contact request or acceptance (since 0.8.0)
+/// and returns its alias. `sender_account_id` and `sender_account_public_key` are the
+/// sender's, from the mailbox element and their verified identity v3; `deposited_at` is
+/// the element's `created_at`. Any failure is `InvalidAttestation`.
+#[uniffi::export]
+pub fn verify_alias_attestation(
+    text: String,
+    signature: String,
+    trusted_keys: Vec<TrustedAttestationKey>,
+    sender_account_id: String,
+    sender_account_public_key: String,
+    deposited_at: String,
+) -> Result<String> {
+    attestation::verify(
+        &text,
+        &signature,
+        &trusted_keys,
+        &sender_account_id,
+        &sender_account_public_key,
+        &deposited_at,
+    )
+}
+
 #[uniffi::export]
 pub fn encode_content(content: Content) -> Result<String> {
     content::encode(content)
