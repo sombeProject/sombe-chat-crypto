@@ -1,0 +1,265 @@
+{
+  "description": "SOMBE test vectors of sombe-chat-crypto 0.9.0: the access key (HKDF-SHA256 of the 32 byte profile key, empty salt, info sombe:access_key:1, 16 bytes) and its verifier (SHA-256 of the 16 bytes), both base64 without padding; keys refused for their form; the access_key content and an acceptance with and without an access key; contents refused. Test seeds and test keys only: never use them for anything real.",
+  "access_key": {
+    "derived": [
+      {
+        "profile_key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "access_key": "4qySZP7Bd/VifYL9bdJscw",
+        "verifier": "e07y89YU2g81Kuvv90LTiyhhd9rnp3uxXZKLtciTSS0"
+      },
+      {
+        "profile_key_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "access_key": "v1Ws5J/UZ5oX1rnEBKFU+g",
+        "verifier": "3gDnmsioxeTNbmCj5EWF4Ge9onUQOcoT6vc2rANiTMc"
+      }
+    ],
+    "refused_profile_keys": [
+      {
+        "name": "a profile key of 31 bytes",
+        "profile_key_hex": "07070707070707070707070707070707070707070707070707070707070707"
+      },
+      {
+        "name": "a profile key of 33 bytes",
+        "profile_key_hex": "070707070707070707070707070707070707070707070707070707070707070707"
+      },
+      {
+        "name": "a profile key of 0 bytes",
+        "profile_key_hex": ""
+      }
+    ],
+    "refused_access_keys": [
+      {
+        "name": "15 bytes",
+        "access_key": "AAECAwQFBgcICQoLDA0O"
+      },
+      {
+        "name": "17 bytes",
+        "access_key": "AAECAwQFBgcICQoLDA0ODxA"
+      },
+      {
+        "name": "base64 with padding",
+        "access_key": "4qySZP7Bd/VifYL9bdJscw=="
+      },
+      {
+        "name": "URL safe base64",
+        "access_key": "_-_-_-_-_-_-_-_-_-_-_w"
+      },
+      {
+        "name": "a spelling that is not the one of its bytes",
+        "access_key": "AAECAwQFBgcICQoLDA0ODx"
+      },
+      {
+        "name": "empty",
+        "access_key": ""
+      }
+    ]
+  },
+  "identity_keys": {
+    "sender": {
+      "seed_hex": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "ed25519": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU"
+    },
+    "recipient": {
+      "seed_hex": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+      "ed25519": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc"
+    }
+  },
+  "content_v4": {
+    "bound": {
+      "access_key": {
+        "bytes": 512,
+        "plaintext": "{\"v\":4,\"kind\":\"access_key\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"access_key\":\"4qySZP7Bd/VifYL9bdJscw\",\"generation\":1,\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      "access_key_last_generation": {
+        "bytes": 512,
+        "plaintext": "{\"v\":4,\"kind\":\"access_key\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"access_key\":\"4qySZP7Bd/VifYL9bdJscw\",\"generation\":2147483647,\"pad\":\"                                                                                                               \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      "contact_accept_with_access_key": {
+        "bytes": 1024,
+        "plaintext": "{\"v\":4,\"kind\":\"contact_accept\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"attestation\":\"SOMBE alias attestation v1\\nkid:t1\\nalias:alice_01\\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\\nexpires:1794916800\",\"attestation_signature\":\"5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd\",\"access_key\":\"4qySZP7Bd/VifYL9bdJscw\",\"access_key_generation\":1,\"pad\":\"                                                                                                                                                                                                                                                                    \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      },
+      "contact_accept_without_access_key": {
+        "bytes": 1024,
+        "plaintext": "{\"v\":4,\"kind\":\"contact_accept\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"attestation\":\"SOMBE alias attestation v1\\nkid:t1\\nalias:alice_01\\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\\nexpires:1794916800\",\"attestation_signature\":\"5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd\",\"pad\":\"                                                                                                                                                                                                                                                                                                                                    \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        }
+      }
+    },
+    "refused": [
+      {
+        "name": "an acceptance with access_key but no access_key_generation",
+        "plaintext": "{\"v\":4,\"kind\":\"contact_accept\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"attestation\":\"SOMBE alias attestation v1\\nkid:t1\\nalias:alice_01\\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\\nexpires:1794916800\",\"attestation_signature\":\"5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd\",\"access_key\":\"4qySZP7Bd/VifYL9bdJscw\",\"pad\":\"                                                                                                                                                                                                                                                                    \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        },
+        "error": "InvalidContent"
+      },
+      {
+        "name": "an acceptance with access_key_generation but no access_key",
+        "plaintext": "{\"v\":4,\"kind\":\"contact_accept\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"request_id\":\"27f4cde0-bc9f-4e6a-8dab-3f4a5b6c7d89\",\"attestation\":\"SOMBE alias attestation v1\\nkid:t1\\nalias:alice_01\\naccount_id:8f14e45f-ceea-4c6b-9a3d-2b1c0d9e8f7a\\naccount:3ogUn1GNXoASaRbxPNeVJnVv5rG4EPBtmQmX61jVorUe\\nexpires:1794916800\",\"attestation_signature\":\"5osCGArePWKUfxcUb7arqHFBjzNzT3Qoe2Kqr8WC5uEdPYhkqdc2QuErS1GhjHExBdqJhirPLje7nk1r94FvpBsd\",\"pad\":\"                                                                                                                                                                                                                                                                    \",\"access_key_generation\":1}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        },
+        "error": "InvalidContent"
+      },
+      {
+        "name": "an access key of 15 bytes",
+        "plaintext": "{\"v\":4,\"kind\":\"access_key\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"access_key\":\"AAECAwQFBgcICQoLDA0O\",\"generation\":1,\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        },
+        "error": "InvalidContent"
+      },
+      {
+        "name": "an access key with base64 padding",
+        "plaintext": "{\"v\":4,\"kind\":\"access_key\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"access_key\":\"4qySZP7Bd/VifYL9bdJscw==\",\"generation\":1,\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        },
+        "error": "InvalidContent"
+      },
+      {
+        "name": "generation 0",
+        "plaintext": "{\"v\":4,\"kind\":\"access_key\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"access_key\":\"4qySZP7Bd/VifYL9bdJscw\",\"generation\":0,\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        },
+        "error": "InvalidContent"
+      },
+      {
+        "name": "generation above 2147483647",
+        "plaintext": "{\"v\":4,\"kind\":\"access_key\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"access_key\":\"4qySZP7Bd/VifYL9bdJscw\",\"generation\":2147483648,\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        },
+        "error": "InvalidContent"
+      },
+      {
+        "name": "generation written as a string",
+        "plaintext": "{\"v\":4,\"kind\":\"access_key\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"access_key\":\"4qySZP7Bd/VifYL9bdJscw\",\"generation\":\"1\",\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        },
+        "error": "InvalidContent"
+      },
+      {
+        "name": "an unknown field in an access_key content",
+        "plaintext": "{\"v\":4,\"kind\":\"access_key\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"access_key\":\"4qySZP7Bd/VifYL9bdJscw\",\"generation\":1,\"pad\":\"                                                                                                                        \",\"access_key_generation\":1}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        },
+        "error": "InvalidContent"
+      },
+      {
+        "name": "an access_key content in version 2",
+        "plaintext": "{\"v\":2,\"kind\":\"access_key\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"access_key\":\"4qySZP7Bd/VifYL9bdJscw\",\"generation\":1,\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "mailbox",
+          "envelope_id": "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78",
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        },
+        "error": "UnsupportedContent"
+      },
+      {
+        "name": "an access_key content through the websocket",
+        "plaintext": "{\"v\":4,\"kind\":\"access_key\",\"sender_account_id\":\"a1a1a1a1-0000-4000-8000-0000000000a1\",\"sender_ed25519\":\"vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU\",\"recipient_account_id\":\"b2b2b2b2-0000-4000-8000-0000000000b2\",\"recipient_ed25519\":\"VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc\",\"envelope_id\":\"7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78\",\"access_key\":\"4qySZP7Bd/VifYL9bdJscw\",\"generation\":1,\"pad\":\"                                                                                                                        \"}",
+        "binding": {
+          "channel": "websocket",
+          "envelope_id": null,
+          "sender_account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+          "sender_ed25519_key": "vHy8tWNjdfodgkNNRmck2SN39TuYBpXdSdJtDOEiBaU",
+          "my_account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+          "my_ed25519_key": "VRVPQgZepaG+oFRjgmviaE65LfksEAAnqrquV8pVQgc",
+          "legacy_conversation_id": null
+        },
+        "error": "UnboundContent"
+      }
+    ]
+  }
+}

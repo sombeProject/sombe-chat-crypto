@@ -1,5 +1,6 @@
 // Compiled with kotlinc 1.7.21 (the SOMBE app's Kotlin) against the generated bindings,
 // then run on the JVM with the host library: proves the bindings work from that Kotlin.
+import org.sombe.chatcrypto.AccessKeyGrant
 import org.sombe.chatcrypto.AccountRotationContent
 import org.sombe.chatcrypto.ChatAccountKey
 import org.sombe.chatcrypto.ChatCrypto
@@ -17,9 +18,11 @@ import org.sombe.chatcrypto.StatementFields
 import org.sombe.chatcrypto.TrustedAttestationKey
 import org.sombe.chatcrypto.TypingState
 import org.sombe.chatcrypto.VerifiedIdentity
+import org.sombe.chatcrypto.accessKeyVerifier
 import org.sombe.chatcrypto.checkIdentityUpdate
 import org.sombe.chatcrypto.compareScannedSafetyCode
 import org.sombe.chatcrypto.decodeContent
+import org.sombe.chatcrypto.deriveAccessKey
 import org.sombe.chatcrypto.deriveAccountKey
 import org.sombe.chatcrypto.encodeContent
 import org.sombe.chatcrypto.proveRotation
@@ -117,7 +120,7 @@ fun main() {
         ContentBody.PaymentRequestDeclined(requestId),
         ContentBody.PaymentRequestCancelled(requestId),
         ContentBody.ContactRequest("SOMBE alias attestation v1", signature),
-        ContentBody.ContactAccept(requestId, "SOMBE alias attestation v1", signature),
+        ContentBody.ContactAccept(requestId, "SOMBE alias attestation v1", signature, null),
         ContentBody.ContactCancel(requestId),
     )
     for (body in newKinds) {
@@ -127,6 +130,37 @@ fun main() {
         encodeContent(content.copy(body = newKinds[2])).encodeToByteArray().size == 1024,
         "a payment request with a note is padded to 1024 bytes",
     )
+    // Since 0.9.0: the access key, drawn from a profile key and given to contacts only.
+    val accessKey = deriveAccessKey(ByteArray(32) { it.toByte() })
+    check(accessKey == "4qySZP7Bd/VifYL9bdJscw", "the access key matches vectors/v6.json")
+    check(
+        accessKeyVerifier(accessKey) == "e07y89YU2g81Kuvv90LTiyhhd9rnp3uxXZKLtciTSS0",
+        "the verifier matches vectors/v6.json",
+    )
+    try {
+        deriveAccessKey(ByteArray(31))
+        check(false, "a profile key of 31 bytes must throw")
+    } catch (e: ChatCryptoException.InvalidKey) {
+        check(true, "a profile key of 31 bytes is refused")
+    }
+    val grant = AccessKeyGrant(accessKey, 1u)
+    val accessKinds = listOf(
+        ContentBody.AccessKey(grant),
+        ContentBody.ContactAccept(requestId, "SOMBE alias attestation v1", signature, grant),
+    )
+    for (body in accessKinds) {
+        check(roundTrips(content.copy(body = body)), "${body::class.simpleName} with an access key round trips")
+    }
+    check(
+        encodeContent(content.copy(body = accessKinds[0])).encodeToByteArray().size == 512,
+        "an access key content is padded to 512 bytes",
+    )
+    try {
+        encodeContent(content.copy(body = ContentBody.AccessKey(AccessKeyGrant(accessKey, 0u))))
+        check(false, "an access key of generation 0 must throw")
+    } catch (e: ChatCryptoException.InvalidContent) {
+        check(true, "an access key of generation 0 is refused")
+    }
     try {
         encodeContent(content.copy(body = ContentBody.PaymentRequest(requestId, 0L, sol, 9u, null)))
         check(false, "an amount of 0 must throw")

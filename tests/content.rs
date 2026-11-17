@@ -75,6 +75,13 @@ fn is_unbound(result: Result<Content, ChatCryptoError>) -> bool {
     matches!(result, Err(ChatCryptoError::UnboundContent))
 }
 
+/// A test access key: the one of the first profile key of vectors/v6.json.
+const ACCESS_KEY: &str = "4qySZP7Bd/VifYL9bdJscw";
+
+fn grant(generation: u32) -> AccessKeyGrant {
+    AccessKeyGrant { access_key: ACCESS_KEY.into(), generation }
+}
+
 /// A test attestation and signature: their form only, the module never reads them here.
 const ATTESTATION: &str = "SOMBE alias attestation v1\nkid:t1\nalias:alice_01\naccount_id:a1a1a1a1-0000-4000-8000-0000000000a1\naccount:F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4\nexpires:1794916800";
 const SIGNATURE: &str =
@@ -146,8 +153,22 @@ fn every_kind_round_trips_with_its_fields_in_order() {
                 request_id: TARGET.into(),
                 attestation: ATTESTATION.into(),
                 attestation_signature: SIGNATURE.into(),
+                access_key: None,
             },
             r#""kind":"contact_accept",IDS,"envelope_id":"E","request_id":"T","attestation":"A","attestation_signature":"G""#,
+        ),
+        (
+            ContentBody::ContactAccept {
+                request_id: TARGET.into(),
+                attestation: ATTESTATION.into(),
+                attestation_signature: SIGNATURE.into(),
+                access_key: Some(grant(3)),
+            },
+            r#""kind":"contact_accept",IDS,"envelope_id":"E","request_id":"T","attestation":"A","attestation_signature":"G","access_key":"K","access_key_generation":3"#,
+        ),
+        (
+            ContentBody::AccessKey { grant: grant(1) },
+            r#""kind":"access_key",IDS,"envelope_id":"E","access_key":"K","generation":1"#,
         ),
         (
             ContentBody::ContactCancel { request_id: TARGET.into() },
@@ -168,7 +189,8 @@ fn every_kind_round_trips_with_its_fields_in_order() {
             .replace(r#""M""#, &format!(r#""{CLIENT}""#))
             .replace(r#""T""#, &format!(r#""{TARGET}""#))
             .replace(r#""A""#, &serde_json::to_string(ATTESTATION).unwrap())
-            .replace(r#""G""#, &format!(r#""{SIGNATURE}""#));
+            .replace(r#""G""#, &format!(r#""{SIGNATURE}""#))
+            .replace(r#""K""#, &format!(r#""{ACCESS_KEY}""#));
         assert_eq!(unpadded(&json), expected);
         assert_eq!(read(json).unwrap(), read_back(&content));
     }
@@ -713,8 +735,20 @@ fn contents_are_padded_to_their_bucket() {
         request_id: TARGET.into(),
         attestation: ATTESTATION.into(),
         attestation_signature: SIGNATURE.into(),
+        access_key: None,
     };
     assert_eq!(size(accept), 1024);
+    // The access key (since 0.9.0): its content is at 512 like a receipt, whatever its
+    // generation, and it keeps an acceptance at 1024.
+    assert_eq!(size(ContentBody::AccessKey { grant: grant(1) }), 512);
+    assert_eq!(size(ContentBody::AccessKey { grant: grant(2_147_483_647) }), 512);
+    let accept_with_key = ContentBody::ContactAccept {
+        request_id: TARGET.into(),
+        attestation: ATTESTATION.into(),
+        attestation_signature: SIGNATURE.into(),
+        access_key: Some(grant(2_147_483_647)),
+    };
+    assert_eq!(size(accept_with_key), 1024);
     assert_eq!(size(ContentBody::ContactCancel { request_id: TARGET.into() }), 512);
     // The longest text allowed: 4000 characters of 4 bytes are 16000 bytes, 18 too many for
     // 16384 with the rest of a version 4 content. 3995 of them still fit.
@@ -806,4 +840,65 @@ fn vodozemac_message_gap_limits() {
         let late = bob.decrypt_from(alice.identity_keys(), vec![read.session], early.envelope, key());
         assert_eq!(late.is_ok(), readable, "overtaken by a message {} ahead", unsent + 1);
     }
+}
+
+#[test]
+fn an_access_key_is_written_and_read_in_one_form_only() {
+    // Write: the key is base64 without padding of 16 bytes, the generation 1 to 2147483647.
+    for key in ["AAECAwQFBgcICQoLDA0O", "4qySZP7Bd/VifYL9bdJscw==", "4qySZP7Bd_VifYL9bdJscw", ""] {
+        let body = ContentBody::AccessKey { grant: AccessKeyGrant { access_key: key.into(), generation: 1 } };
+        assert!(is_invalid(encode_content(v4(body))), "{key}");
+    }
+    for generation in [0, 2_147_483_648, u32::MAX] {
+        assert!(is_invalid(encode_content(v4(ContentBody::AccessKey { grant: grant(generation) }))));
+    }
+
+    // Read: both fields of an acceptance or neither, a JSON integer, and only in version 4.
+    let accept = |extra: &str| {
+        read(v4_json(&format!(
+            r#""kind":"contact_accept","envelope_id":"{ENVELOPE}","request_id":"{TARGET}","attestation":"x","attestation_signature":"{SIGNATURE}"{extra}"#
+        )))
+    };
+    assert!(accept("").is_ok());
+    assert!(accept(&format!(r#","access_key":"{ACCESS_KEY}","access_key_generation":2"#)).is_ok());
+    assert!(is_invalid(accept(&format!(r#","access_key":"{ACCESS_KEY}""#))));
+    assert!(is_invalid(accept(r#","access_key_generation":2"#)));
+    assert!(is_invalid(accept(&format!(r#","access_key":"{ACCESS_KEY}","access_key_generation":"2""#))));
+    assert!(is_invalid(accept(&format!(r#","access_key":"{ACCESS_KEY}","access_key_generation":2.5"#))));
+    assert!(is_invalid(accept(&format!(r#","access_key":"{ACCESS_KEY}","access_key_generation":-1"#))));
+    assert!(is_invalid(accept(&format!(r#","access_key":"{ACCESS_KEY}","access_key_generation":null"#))));
+    assert!(is_invalid(accept(r#","access_key":null,"access_key_generation":1"#)));
+    let kind =
+        |fields: &str| read(v4_json(&format!(r#""kind":"access_key","envelope_id":"{ENVELOPE}",{fields}"#)));
+    assert!(kind(&format!(r#""access_key":"{ACCESS_KEY}","generation":1"#)).is_ok());
+    assert!(is_invalid(kind(&format!(r#""access_key":"{ACCESS_KEY}""#))));
+    assert!(is_invalid(kind(r#""generation":1"#)));
+    assert!(is_invalid(kind(&format!(r#""access_key":"{ACCESS_KEY}","generation":1,"alias":"x""#))));
+    let v2 = format!(
+        r#"{{"v":2,"kind":"access_key","conversation_id":"{CONVERSATION}","envelope_id":"{ENVELOPE}","access_key":"{ACCESS_KEY}","generation":1}}"#
+    );
+    assert!(is_unsupported(decode_content(v2, legacy(ENVELOPE, CONVERSATION))));
+    // Mailbox only.
+    let json = encode_content(v4(ContentBody::AccessKey { grant: grant(1) })).unwrap();
+    assert!(is_unbound(decode_content(json, websocket())));
+}
+
+#[test]
+fn the_access_key_is_derived_and_verified_in_one_form_only() {
+    let access_key = derive_access_key((0..32).collect()).unwrap();
+    assert_eq!(access_key, ACCESS_KEY);
+    assert_eq!(access_key_verifier(access_key).unwrap(), "e07y89YU2g81Kuvv90LTiyhhd9rnp3uxXZKLtciTSS0");
+    for len in [0, 16, 31, 33, 64] {
+        assert!(matches!(derive_access_key(vec![1; len]), Err(ChatCryptoError::InvalidKey { .. })), "{len}");
+    }
+    for key in [
+        "AAECAwQFBgcICQoLDA0O",
+        "4qySZP7Bd/VifYL9bdJscw==",
+        "4qySZP7Bd_VifYL9bdJscw",
+        "AAECAwQFBgcICQoLDA0ODx",
+    ] {
+        assert!(matches!(access_key_verifier(key.into()), Err(ChatCryptoError::InvalidKey { .. })), "{key}");
+    }
+    // Two profile keys give two access keys.
+    assert_ne!(derive_access_key(vec![1; 32]).unwrap(), derive_access_key(vec![2; 32]).unwrap());
 }

@@ -12,13 +12,14 @@ no business logic: no networking, no storage, no payments.
 - [vectors/v2.json](vectors/v2.json): content version 2, one vector per kind (since 0.5.0; wallet card and payments since 0.6.0).
 - [vectors/v3.json](vectors/v3.json): the account key, the texts it signs, its rotation and the safety number v2 (since 0.7.0).
 - [vectors/v4.json](vectors/v4.json): alias attestations accepted and refused (since 0.8.0), and the content version 3 of 0.8.0, no longer read (frozen).
-- [vectors/v5.json](vectors/v5.json): content version 4 with its binding, account ids and identity keys (since 0.8.1).
+- [vectors/v5.json](vectors/v5.json): content version 4 with its binding, account ids and identity keys (since 0.8.1, frozen).
+- [vectors/v6.json](vectors/v6.json): the access key and its verifier, the `access_key` content and an acceptance with and without an access key (since 0.9.0).
 
 ## Build and test
 
 ```bash
 cargo test                      # Rust tests and test vectors
-cargo run --bin make-vectors    # regenerates vectors/v5.json (deterministic); v1.json to v4.json are frozen
+cargo run --bin make-vectors    # regenerates vectors/v6.json (deterministic); v1.json to v5.json are frozen
 ```
 
 vodozemac is a crates.io dependency pinned with `=`, never copied into this repository.
@@ -91,6 +92,13 @@ when (val body = decodeContent(read.plaintext, binding).body) { // UnboundConten
             element.senderAccountId, senderAccountPublicKey, element.createdAt)
     else -> Unit
 }
+
+// Access key (since 0.9.0): drawn from a random 32 byte profile key, given to contacts only.
+val accessKey = deriveAccessKey(profileKey)          // 16 bytes, base64 without padding
+val verifier = accessKeyVerifier(accessKey)          // SHA-256 of those bytes: the server keeps only this
+val accept = ContentBody.ContactAccept(requestId, attestation, attestationSignature,
+    AccessKeyGrant(accessKey, generation))           // null in an acceptance written by 0.8.1
+val give = ContentBody.AccessKey(AccessKeyGrant(accessKey, generation)) // a higher generation replaces
 ```
 
 Sessions travel in and out of each call as encrypted pickles, so the app can store the
