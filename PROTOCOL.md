@@ -31,6 +31,16 @@ prove that its author holds its curve25519 key, so the ids alone did not stop a 
 passing one person's messages off as another's (*Version 4*). Version 3 was written by
 0.8.0 only, is no longer read, and `vectors/v4.json` is frozen in turn.
 
+0.9.0 adds the access key (*Access key*): a capability drawn from a random profile key,
+which a person gives only to their contacts, so that the server can keep a share of their
+mailbox for them. Content version 4 carries it in two places: an optional pair of fields
+of `contact_accept`, and a new `access_key` kind. A 0.9.0 phone reads an acceptance written
+by 0.8.1 (without the pair). The other way does not hold: a 0.8.1 module reads every field
+of a kind strictly, so it refuses an acceptance that carries an access key as
+`InvalidContent`, and its phone never sees that it was accepted. SOMBE moves every phone
+to 0.9.0 together. A 0.8.1 module reads the `access_key` kind as `UnsupportedContent`
+(authentic, not shown). `vectors/v5.json` is frozen in turn.
+
 `vectors/v1.json` holds test vectors written by 0.4.0 (its identity statement and safety
 number are no longer read since 0.7.0; its keys, sessions and version 1 contents still
 are), `vectors/v2.json` those of content version 2 (since 0.5.0; wallet card and payment
@@ -40,7 +50,10 @@ the rotation proof, the `account_rotation` content and the safety number v2. The
 server replays `vectors/v3.json` byte for byte, so the server and the module never build
 a text differently. `vectors/v4.json` (since 0.8.0) holds alias attestations, accepted and
 refused, with the test signing seeds; the server replays it too. `vectors/v5.json` (since
-0.8.1) holds content version 4 with its binding.
+0.8.1) holds content version 4 with its binding. `vectors/v6.json` (since 0.9.0) holds
+the access key derived from two profile keys with its verifier, keys refused for their
+form, the `access_key` content, an acceptance with and without an access key, and contents
+refused; the server replays its verifiers.
 
 ## Account key (since 0.7.0)
 
@@ -322,6 +335,38 @@ Anything else is `InvalidAttestation`, with no detail. The app holds the trusted
 its environment in the APK; a public key is not a secret. An attestation whose `kid` the
 app does not know is refused like any other.
 
+## Access key (since 0.9.0)
+
+Each person's phone draws a profile key at random, 32 bytes, and keeps it with its other
+secrets; a new phone or a restore draws a new one. The access key is
+
+```
+access_key = HKDF-SHA256(ikm = profile_key, salt = empty, info = "sombe:access_key:1", L = 16)
+```
+
+(an empty salt is 32 zero bytes, as RFC 5869 says), written in base64 without padding (22
+characters). `derive_access_key(profile_key)` gives it; another length of profile key is
+`InvalidKey`, and the module erases the profile key from its memory before returning.
+
+The server keeps only the verifier, `SHA-256(access_key)` computed over the 16 bytes (not
+over their base64 text), in base64 without padding (43 characters), as
+`access_key_verifier(access_key)` gives it. An access key in any other spelling (with
+padding, URL safe, another length, or a spelling that is not the one of its bytes) is
+`InvalidKey`. The access key is 128 bits drawn from 256 random bits, so a plain SHA-256 is
+enough: there is no dictionary to try.
+
+A phone gives its access key only to an account it became a contact of: in its
+`contact_accept`, or in an `access_key` content right after it saw its request accepted.
+Each carries a generation, 1 for the first profile key of an account and higher for each
+new one; a phone replaces a key it keeps only with one of a higher generation, so two
+contents read out of order never bring an old key back.
+
+A sender shows the access key of its recipient, in the body of its mailbox request, never
+inside the ciphertext, so the server can tell which share of the recipient's mailbox it
+counts in. The server therefore sees, while it deposits, that a sender it knows holds that
+key. It never keeps the key itself. The key opens no content: it only lets an envelope
+count among a person's contacts.
+
 ## Envelope
 
 What the server stores and relays for each message:
@@ -357,13 +402,22 @@ discarding any event that does not comply):
 Fields come in this order: `v`, `kind`, `sender_account_id`, `sender_ed25519`,
 `recipient_account_id`, `recipient_ed25519`, `envelope_id` (every kind but `typing`), the
 fields of the kind as in version 2, then `pad`. Every kind of version 2 exists in version 4
-with the same fields, plus three (since 0.8.0):
+with the same fields, plus three (since 0.8.0) and one (since 0.9.0):
 
 | `kind` | Its own fields | Channel |
 |---|---|---|
 | `contact_request` | `attestation` (1 to 512 bytes), `attestation_signature` (base58 of 64 bytes) | mailbox |
 | `contact_accept` | `request_id` (the envelope id of the request it accepts), `attestation`, `attestation_signature` | mailbox |
 | `contact_cancel` | `request_id` (the envelope id of the request it withdraws) | mailbox |
+| `access_key` (since 0.9.0) | `access_key` (base64 without padding of 16 bytes), `generation` (JSON integer, 1 to 2147483647) | mailbox |
+
+Since 0.9.0 `contact_accept` may also carry, after `attestation_signature`,
+`access_key` and `access_key_generation`: the accepting account's access key and its
+generation, with the same forms as the `access_key` kind. Both come together or neither
+(an acceptance written by 0.8.1 has neither); one without the other, a key in another
+spelling, or a generation that is not a JSON integer from 1 to 2147483647 is
+`InvalidContent`. The `access_key` kind is read only in version 4: in version 2 it is
+`UnsupportedContent`.
 
 The module checks only the form of an attestation here. Its alias comes out only of
 `verify_alias_attestation` (*Alias attestation*); no kind carries an alias of its own. The
@@ -428,7 +482,7 @@ the old conversation id at a date it sets itself, not one the server tells it.
 
 Padding is as before, but nothing fits the smallest bucket (256 bytes) any more: the two
 identity keys add about 130 bytes to the 115 of the two account ids. A `typing`, a
-receipt, a cancellation and a short text (up to 110 bytes of body, without a reply) are at
+receipt, a cancellation, an `access_key` content (whatever its generation) and a short text (up to 110 bytes of body, without a reply) are at
 512 bytes; a longer text, a contact request or acceptance and an `account_rotation` at
 1024, and so on by powers of two. The longest text allowed, 4000 characters of 4 bytes,
 is 18 bytes too long for 16384 and is padded to 32768; 4000 characters of one byte are at

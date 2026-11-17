@@ -15,6 +15,7 @@ use vodozemac::olm::{Account, AccountPickle, OlmMessage, Session, SessionConfig,
 use vodozemac::{base64_decode, base64_encode, Curve25519PublicKey};
 use zeroize::Zeroizing;
 
+mod access;
 mod account;
 mod attestation;
 mod content;
@@ -27,7 +28,8 @@ pub use account::{
 };
 pub use attestation::TrustedAttestationKey;
 pub use content::{
-    Content, ContentBinding, ContentBody, ContentChannel, OutgoingContent, ReceiptStatus, TypingState,
+    AccessKeyGrant, Content, ContentBinding, ContentBody, ContentChannel, OutgoingContent, ReceiptStatus,
+    TypingState,
 };
 
 uniffi::setup_scaffolding!();
@@ -483,6 +485,22 @@ pub fn verify_alias_attestation(
         &sender_account_public_key,
         &deposited_at,
     )
+}
+
+/// The access key of a profile key (since 0.9.0): HKDF-SHA256 of the 32 byte profile key,
+/// empty salt, info `sombe:access_key:1`, 16 bytes in base64 without padding. Another
+/// length of profile key is `InvalidKey`. The profile key is erased from the module's memory
+/// before returning.
+#[uniffi::export]
+pub fn derive_access_key(profile_key: Vec<u8>) -> Result<String> {
+    access::derive(profile_key)
+}
+
+/// The verifier the server keeps for an access key (since 0.9.0): SHA-256 of its 16 bytes,
+/// base64 without padding. An access key in any other spelling is `InvalidKey`.
+#[uniffi::export]
+pub fn access_key_verifier(access_key: String) -> Result<String> {
+    access::verifier(&access_key)
 }
 
 /// Writes a version 4 content (since 0.8.1), padded to its size bucket: it names the

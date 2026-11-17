@@ -32,10 +32,15 @@
 //! pass that person's messages off as theirs. An identity must be signed by its own ed25519
 //! key, so that key cannot be borrowed. Version 3 (0.8.0 only) had no such keys and is no
 //! longer read.
+//!
+//! Since 0.9.0 version 4 also carries the access key: an acceptance may give the accepting
+//! account's, and the `access_key` kind gives one to a contact. Both are read only in
+//! version 4. A 0.8.1 module refuses an acceptance that carries one (an unknown field).
 
 use serde_json::{Map, Value};
 use vodozemac::{base64_decode, base64_encode};
 
+use crate::access;
 use crate::account::{max_base58_chars, AccountRotationContent, LAST_GENERATION};
 use crate::ChatCryptoError;
 
@@ -71,6 +76,16 @@ const COMMON_FIELDS_V4: [&str; 7] = [
 const IDENTITY_KEY_CHARS: usize = 43;
 /// An alias attestation text is at most this long (since 0.8.0).
 pub const MAX_ATTESTATION_BYTES: usize = 512;
+/// The highest generation of an access key, the range of a signed 32 bit integer.
+pub const LAST_ACCESS_KEY_GENERATION: u32 = i32::MAX as u32;
+
+/// An access key given to a contact (since 0.9.0): the key, base64 without padding of 16
+/// bytes, and its generation, 1 to 2147483647. A higher generation replaces a lower one.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct AccessKeyGrant {
+    pub access_key: String,
+    pub generation: u32,
+}
 
 /// What `encode_content` writes: a version 4 content from one account to another (since
 /// 0.8.1). Every id is a UUID, written in lower case; every key is the ed25519 key of an Olm
@@ -203,10 +218,18 @@ pub enum ContentBody {
     /// alias. The request id is this content's envelope id.
     ContactRequest { attestation: String, attestation_signature: String },
     /// Accepts the request whose envelope id is `request_id` (since 0.8.0), with the
-    /// accepting account's attestation.
-    ContactAccept { request_id: String, attestation: String, attestation_signature: String },
+    /// accepting account's attestation and, since 0.9.0, its access key (`None` in an
+    /// acceptance written by 0.8.1).
+    ContactAccept {
+        request_id: String,
+        attestation: String,
+        attestation_signature: String,
+        access_key: Option<AccessKeyGrant>,
+    },
     /// Withdraws the request whose envelope id is `request_id` (since 0.8.0).
     ContactCancel { request_id: String },
+    /// Gives the sender's access key to a contact (since 0.9.0). Mailbox only, never shown.
+    AccessKey { grant: AccessKeyGrant },
 }
 
 /// The fields of `account_rotation`, in the order PROTOCOL.md gives.
@@ -352,11 +375,15 @@ pub(crate) fn encode(content: OutgoingContent) -> Result<String, ChatCryptoError
         ContentBody::ContactRequest { attestation, attestation_signature } => {
             put_attestation(&mut map, attestation, attestation_signature)?;
         }
-        ContentBody::ContactAccept { request_id, attestation, attestation_signature } => {
+        ContentBody::ContactAccept { request_id, attestation, attestation_signature, access_key } => {
             put_uuid(&mut map, "request_id", request_id)?;
             put_attestation(&mut map, attestation, attestation_signature)?;
+            if let Some(grant) = access_key {
+                put_grant(&mut map, grant, "access_key_generation")?;
+            }
         }
         ContentBody::ContactCancel { request_id } => put_uuid(&mut map, "request_id", request_id)?,
+        ContentBody::AccessKey { grant } => put_grant(&mut map, grant, "generation")?,
     }
     pad(map)
 }
@@ -474,8 +501,11 @@ fn decode_v2_v4(mut map: Map<String, Value>, version: u8) -> Result<Decoded, Cha
         "payment_request_declined" | "payment_request_cancelled" => &["request_id"],
         "account_rotation" => &ROTATION_FIELDS,
         "contact_request" if version >= 3 => &["attestation", "attestation_signature"],
-        "contact_accept" if version >= 3 => &["request_id", "attestation", "attestation_signature"],
+        "contact_accept" if version >= 3 => {
+            &["request_id", "attestation", "attestation_signature", "access_key", "access_key_generation"]
+        }
         "contact_cancel" if version >= 3 => &["request_id"],
+        "access_key" if version >= 4 => &["access_key", "generation"],
         _ => return Err(unsupported("unknown content kind")),
     };
     // Exactly the fields of the kind: a later addition is a new version.
@@ -630,7 +660,13 @@ fn decode_v2_v4(mut map: Map<String, Value>, version: u8) -> Result<Decoded, Cha
             request_id: id("request_id")?,
             attestation: attestation(&required(&map, "attestation")?)?,
             attestation_signature: canonical_owned(&required(&map, "attestation_signature")?)?,
+            access_key: match (map.contains_key("access_key"), map.contains_key("access_key_generation")) {
+                (false, false) => None,
+                (true, true) => Some(read_grant(&map, "access_key_generation")?),
+                _ => return Err(invalid("access_key and access_key_generation come together")),
+            },
         },
+        "access_key" => ContentBody::AccessKey { grant: read_grant(&map, "generation")? },
         "contact_cancel" => ContentBody::ContactCancel { request_id: id("request_id")? },
         _ => unreachable!("kinds were matched above"),
     };
@@ -776,7 +812,38 @@ fn kind_name(body: &ContentBody) -> &'static str {
         ContentBody::ContactRequest { .. } => "contact_request",
         ContentBody::ContactAccept { .. } => "contact_accept",
         ContentBody::ContactCancel { .. } => "contact_cancel",
+        ContentBody::AccessKey { .. } => "access_key",
     }
+}
+
+/// Writes `access_key`, then its generation under `generation_name`.
+fn put_grant(
+    map: &mut Map<String, Value>,
+    grant: &AccessKeyGrant,
+    generation_name: &str,
+) -> Result<(), ChatCryptoError> {
+    map.insert("access_key".into(), Value::from(access::checked(&grant.access_key, "access_key")?));
+    map.insert(generation_name.into(), Value::from(access_key_generation(grant.generation)?));
+    Ok(())
+}
+
+/// Reads `access_key` and its generation, a JSON integer, under `generation_name`.
+fn read_grant(map: &Map<String, Value>, generation_name: &str) -> Result<AccessKeyGrant, ChatCryptoError> {
+    let generation = match map.get(generation_name) {
+        Some(Value::Number(n)) => n.as_u64().and_then(|g| u32::try_from(g).ok()).unwrap_or(0),
+        _ => 0,
+    };
+    Ok(AccessKeyGrant {
+        access_key: access::checked(&required(map, "access_key")?, "access_key")?,
+        generation: access_key_generation(generation)?,
+    })
+}
+
+fn access_key_generation(generation: u32) -> Result<u32, ChatCryptoError> {
+    if !(1..=LAST_ACCESS_KEY_GENERATION).contains(&generation) {
+        return Err(invalid("the access key generation is 1 to 2147483647"));
+    }
+    Ok(generation)
 }
 
 /// The form of an `account_rotation`, the same on write and on read.
