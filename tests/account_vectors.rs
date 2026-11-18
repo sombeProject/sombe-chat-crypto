@@ -80,14 +80,13 @@ fn wallet_card_and_its_fingerprint() {
 
 #[test]
 fn identity_statement_v3() {
+    // Since 0.10.0 a statement v3 is only verified, never written again.
     let v = &vectors()["identity_v3"];
     let olm = ChatCrypto::restore_account(s(&v["account_pickle"]), unhex(&s(&v["pickle_key_hex"]))).unwrap();
-    let signed = first_key().key.sign_identity_statement(olm, s(&v["created_at"])).unwrap();
-    assert_eq!(signed.statement, s(&v["statement"]));
-    assert_eq!(signed.identity_signature, s(&v["identity_signature"]));
-    assert_eq!(signed.account_signature, s(&v["account_signature"]));
+    assert_eq!(olm.identity_keys().curve25519_key, s(&v["curve25519_key"]));
+    assert_eq!(first_key().key.public_key(), s(&v["account_public_key"]));
     assert_eq!(
-        signed.statement,
+        s(&v["statement"]),
         format!("{}\nidentity_signature:{}", s(&v["body"]), s(&v["identity_signature"]))
     );
 
@@ -95,12 +94,14 @@ fn identity_statement_v3() {
         account_public_key: s(&v["account_public_key"]),
         curve25519_key: s(&v["curve25519_key"]),
         ed25519_key: s(&v["ed25519_key"]),
+        sealing_key: None,
         created_at: s(&v["created_at"]),
         identity_signature: s(&v["identity_signature"]),
         account_signature: s(&v["account_signature"]),
     })
     .unwrap();
     assert_eq!(verified.account_public_key, s(&v["account_public_key"]));
+    assert_eq!(verified.sealing_key, None);
 }
 
 #[test]
@@ -173,6 +174,7 @@ fn safety_number_v2() {
         curve25519_key: s(&i["curve25519_key"]),
         ed25519_key: s(&i["ed25519_key"]),
         created_at: "2026-11-11T09:00:00Z".into(),
+        sealing_key: None,
     };
     let (local, remote) = (identity(&v["local"]), identity(&v["remote"]));
     let number = safety_number(local.clone(), remote.clone()).unwrap();

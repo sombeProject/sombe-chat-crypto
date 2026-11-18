@@ -5,6 +5,7 @@ import org.sombe.chatcrypto.AccountRotationContent
 import org.sombe.chatcrypto.ChatAccountKey
 import org.sombe.chatcrypto.ChatCrypto
 import org.sombe.chatcrypto.ChatCryptoException
+import org.sombe.chatcrypto.ChatSealingKey
 import org.sombe.chatcrypto.ContentBinding
 import org.sombe.chatcrypto.ContentBody
 import org.sombe.chatcrypto.ContentChannel
@@ -14,6 +15,8 @@ import org.sombe.chatcrypto.PinnedIdentity
 import org.sombe.chatcrypto.PinnedOlm
 import org.sombe.chatcrypto.ReceiptStatus
 import org.sombe.chatcrypto.ScanResult
+import org.sombe.chatcrypto.SealedRecipient
+import org.sombe.chatcrypto.SealedSender
 import org.sombe.chatcrypto.StatementFields
 import org.sombe.chatcrypto.TrustedAttestationKey
 import org.sombe.chatcrypto.TypingState
@@ -27,6 +30,8 @@ import org.sombe.chatcrypto.deriveAccountKey
 import org.sombe.chatcrypto.encodeContent
 import org.sombe.chatcrypto.proveRotation
 import org.sombe.chatcrypto.safetyNumber
+import org.sombe.chatcrypto.seal
+import org.sombe.chatcrypto.sealedProtocolId
 import org.sombe.chatcrypto.verifyAliasAttestation
 import org.sombe.chatcrypto.verifyIdentity
 import org.sombe.chatcrypto.verifyOneTimeKey
@@ -261,20 +266,24 @@ fun main() {
     }
     check(aliceKey.signMove(aliceDerived.card, device, null).isNotEmpty(), "the account move is signed")
 
-    // Identities as verifyIdentity returns them, from the server's columns.
-    fun identity(key: ChatAccountKey, of: ChatCrypto, created: String): VerifiedIdentity {
-        val signed = key.signIdentityStatement(of, created)
+    // Identities as verifyIdentity returns them, from the server's columns (v4 since 0.10.0).
+    fun statement(key: ChatAccountKey, of: ChatCrypto, sealing: ChatSealingKey, created: String): StatementFields {
+        val signed = key.signIdentityStatement(of, sealing, created)
         val keys = of.identityKeys()
-        return verifyIdentity(
-            StatementFields(
-                accountPublicKey = key.publicKey(),
-                curve25519Key = keys.curve25519Key,
-                ed25519Key = keys.ed25519Key,
-                createdAt = created,
-                identitySignature = signed.identitySignature,
-                accountSignature = signed.accountSignature,
-            )
+        return StatementFields(
+            accountPublicKey = key.publicKey(),
+            curve25519Key = keys.curve25519Key,
+            ed25519Key = keys.ed25519Key,
+            sealingKey = sealing.publicKey(),
+            createdAt = created,
+            identitySignature = signed.identitySignature,
+            accountSignature = signed.accountSignature,
         )
+    }
+    val sealingKeys = mutableListOf<ChatSealingKey>()
+    fun identity(key: ChatAccountKey, of: ChatCrypto, created: String): VerifiedIdentity {
+        val sealing = ChatSealingKey.generate().also { sealingKeys.add(it) }
+        return verifyIdentity(statement(key, of, sealing, created))
     }
     fun pinned(id: VerifiedIdentity, wallet: String?) =
         PinnedIdentity(id.accountPublicKey, null, wallet, PinnedOlm(id.curve25519Key, id.ed25519Key, id.createdAt))
@@ -340,6 +349,61 @@ fun main() {
         check(true, "rotating with another wallet is WrongGeneration")
     }
 
+    // Since 0.10.0: the sealed sender. Alice seals a real Olm message for Bob's identity.
+    val aliceSealing = ChatSealingKey.generate()
+    val bobSealing = ChatSealingKey.generate()
+    val aliceStatement = statement(aliceKey, alice, aliceSealing, "2026-11-18T09:00:00.183Z")
+    val bobStatement = statement(bobDerived.key, bob, bobSealing, "2026-11-18T09:00:00.183Z")
+    val bobV4 = verifyIdentity(bobStatement)
+    check(bobV4.sealingKey == bobSealing.publicKey(), "a statement v4 gives its sealing key")
+    check(bobId.sealingKey != null, "the module writes only statements v4")
+    try {
+        verifyIdentity(bobStatement.copy(sealingKey = null))
+        check(false, "a v4 read as a v3 must throw")
+    } catch (e: ChatCryptoException.InvalidSignature) {
+        check(true, "the sealing key is signed")
+    }
+    val aliceIdentityId = "a1a1a1a1-1111-4111-8111-1111111111a1"
+    val bobIdentityId = "b2b2b2b2-1111-4111-8111-1111111111b2"
+    val sealedOlm = alice.encryptFor(bob.identityKeys(), first.session, null, encodeContent(content), key)
+    val sealedText = seal(
+        SealedRecipient(bobAccountId, bobIdentityId, bobV4.sealingKey!!),
+        envelope,
+        SealedSender(aliceAccountId, aliceIdentityId, aliceStatement),
+        sealedOlm.envelope,
+    )
+    check(sealedProtocolId() == "sealed-v1", "the sealed protocol id")
+    val opened = bobSealing.openSealed(sealedText, bobAccountId, bobIdentityId, envelope)
+    check(opened.sender.accountId == aliceAccountId, "the sealed sender is Alice")
+    check(opened.envelope == sealedOlm.envelope, "the Olm envelope comes out as it went in")
+    check(verifyIdentity(opened.sender.statement).accountPublicKey == aliceKey.publicKey(), "her certificate holds")
+    try {
+        bobSealing.openSealed(sealedText, bobAccountId, bobIdentityId, target)
+        check(false, "another envelope id must throw")
+    } catch (e: ChatCryptoException.InvalidSealed) {
+        check(true, "a sealed envelope under another id does not open")
+    }
+    val bobPickle = bobSealing.pickle(key)
+    val bobSealingAgain = ChatSealingKey.restore(bobPickle, key)
+    check(bobSealingAgain.publicKey() == bobSealing.publicKey(), "a sealing key restores from its pickle")
+    try {
+        ChatSealingKey.restore(bobPickle, ByteArray(32) { 8 })
+        check(false, "another pickle key must throw")
+    } catch (e: ChatCryptoException.InvalidPickle) {
+        check(true, "a sealing key pickle opens under its pickle key only")
+    }
+    val statementContent = content.copy(body = ContentBody.IdentityStatement(aliceStatement))
+    check(roundTrips(statementContent), "IdentityStatement round trips")
+    check(encodeContent(statementContent).encodeToByteArray().size == 1024, "an identity statement is padded to 1024 bytes")
+    try {
+        decodeContent(encodeContent(statementContent), websocket)
+        check(false, "an identity statement through the websocket must throw")
+    } catch (e: ChatCryptoException.UnboundContent) {
+        check(true, "an identity statement is mailbox only")
+    }
+
+    listOf(aliceSealing, bobSealing, bobSealingAgain).forEach { it.close() }
+    sealingKeys.forEach { it.close() }
     listOf(alice, bob, restored, bobNewPhone).forEach { it.close() }
     listOf(aliceKey, unsealed, bobDerived.key, rotation.newKey).forEach { it.close() }
     println("Kotlin ${KotlinVersion.CURRENT}: all checks passed")

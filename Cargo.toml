@@ -1,6 +1,6 @@
 [package]
 name = "sombe-chat-crypto"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 rust-version = "1.89"
 license = "Apache-2.0"
@@ -20,9 +20,13 @@ required-features = ["bindgen"]
 [[bin]]
 name = "make-vectors"
 path = "tools/make_vectors.rs"
+required-features = ["vectors"]
 
 [features]
 bindgen = ["uniffi/cli"]
+# Fixed keys and fixed randomness for tools/make_vectors.rs and its tests only. Never in a
+# build of the app.
+vectors = []
 
 [dependencies]
 # libolm-compat is off: SOMBE never imports libolm pickles.
@@ -36,6 +40,10 @@ sha2 = "0.11"
 # The account key (0.7.0): HKDF from the wallet key, sealed with XChaCha20-Poly1305.
 hkdf = "=0.13.0"
 chacha20poly1305 = { version = "=0.11.0", default-features = false, features = ["alloc", "getrandom", "zeroize"] }
+# The sealed sender (0.10.0): HPKE (RFC 9180), base mode, DHKEM(X25519, HKDF-SHA256),
+# HKDF-SHA256, ChaCha20Poly1305. Only that suite: no ML-KEM, no system randomness inside.
+hpke = { version = "=0.15.1", default-features = false, features = ["alloc", "x25519", "chacha"] }
+rand_core = "=0.10.1"
 thiserror = "2"
 zeroize = "1"
 

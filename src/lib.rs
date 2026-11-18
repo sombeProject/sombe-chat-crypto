@@ -4,7 +4,8 @@
 //! keeps sessions as opaque, encrypted pickles that go in and out of each call, so it
 //! can write the advanced session in the same database transaction as the result.
 //! Since 0.7.0 it also holds the account key (`ChatAccountKey`): the app never sees its
-//! private half, only its public key and the texts it signed.
+//! private half, only its public key and the texts it signed. Since 0.10.0 it holds the
+//! sealing key of the identity (`ChatSealingKey`) the same way.
 //! The wire formats are described in PROTOCOL.md.
 
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -20,6 +21,7 @@ mod account;
 mod attestation;
 mod content;
 mod safety;
+mod sealed;
 mod statement;
 
 pub use account::{
@@ -31,6 +33,9 @@ pub use content::{
     AccessKeyGrant, Content, ContentBinding, ContentBody, ContentChannel, OutgoingContent, ReceiptStatus,
     TypingState,
 };
+#[cfg(feature = "vectors")]
+pub use sealed::vectors;
+pub use sealed::{ChatSealingKey, OpenedSealed, SealedRecipient, SealedSender, SEALED_PROTOCOL};
 
 uniffi::setup_scaffolding!();
 
@@ -75,7 +80,8 @@ pub enum ChatCryptoError {
     #[error("identity is older than the pinned one")]
     StaleIdentity,
     /// A sealed account key that does not open: wrong sealing key, changed or truncated
-    /// text, or another format version (since 0.7.0). Never more detail.
+    /// text, or another format version (since 0.7.0). Never more detail. (A sealing key of
+    /// an identity that does not restore is `InvalidPickle`.)
     #[error("the sealed account key does not open")]
     InvalidSealedKey,
     /// The account key was asked to sign a text that is not exactly one of its formats
@@ -101,6 +107,11 @@ pub enum ChatCryptoError {
     /// key. Drop it without a trace.
     #[error("the content does not belong to this element")]
     UnboundContent,
+    /// A sealed envelope that does not open (since 0.10.0): another sealing key, another
+    /// recipient, identity or envelope id, a changed or truncated text, or a clear text that
+    /// is not exactly the format. Never more detail.
+    #[error("the sealed envelope does not open")]
+    InvalidSealed,
 }
 
 type Result<T> = std::result::Result<T, ChatCryptoError>;
@@ -112,22 +123,28 @@ pub struct IdentityKeys {
     pub ed25519_key: String,
 }
 
-/// An identity whose statement v3 was checked against its account key.
+/// An identity whose statement (v3, or v4 since 0.10.0) was checked against its account key.
 #[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
 pub struct VerifiedIdentity {
     pub account_public_key: String,
     pub curve25519_key: String,
     pub ed25519_key: String,
     pub created_at: String,
+    /// The X25519 key to seal envelopes for this identity, base64 without padding (since
+    /// 0.10.0): present exactly when the statement is a v4. Once a contact was seen in v4,
+    /// the app refuses a v3 of theirs.
+    pub sealing_key: Option<String>,
 }
 
-/// The columns of an identity statement v3, as the server returns them. The module rebuilds
-/// the text itself.
+/// The columns of an identity statement, as the server returns them: a v3, or a v4 when
+/// `sealing_key` is present (since 0.10.0). The module rebuilds the text itself.
 #[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
 pub struct StatementFields {
     pub account_public_key: String,
     pub curve25519_key: String,
     pub ed25519_key: String,
+    /// Base64 without padding of 32 bytes; absent in a v3.
+    pub sealing_key: Option<String>,
     pub created_at: String,
     /// Base64 without padding.
     pub identity_signature: String,
@@ -416,8 +433,9 @@ pub fn verify_wallet_card(card: WalletCard) -> Result<()> {
     account::verify_wallet_card(&card)
 }
 
-/// Checks an identity statement v3 from the server's columns: the module rebuilds the
-/// seven lines, then checks the identity's and the account key's signatures.
+/// Checks an identity statement from the server's columns, a v3 or (since 0.10.0) a v4 when
+/// `sealing_key` is given: the module rebuilds the text, then checks the identity's and the
+/// account key's signatures.
 #[uniffi::export]
 pub fn verify_identity(fields: StatementFields) -> Result<VerifiedIdentity> {
     statement::verify(&fields)
@@ -524,9 +542,30 @@ pub fn decode_content(json: String, binding: ContentBinding) -> Result<Content> 
     content::decode(&json, &binding)
 }
 
+/// Seals an Olm envelope for one identity of a contact (since 0.10.0), so that the server
+/// cannot read who sent it: HPKE (RFC 9180) base mode to `recipient.sealing_key`, bound to
+/// the recipient's account id, identity id and `envelope_id`. `sender` is my account id,
+/// identity id and my own statement v4 (the columns I published), checked before sealing.
+/// Returns the `ciphertext` of a `sealed-v1` envelope.
+#[uniffi::export]
+pub fn seal(
+    recipient: SealedRecipient,
+    envelope_id: String,
+    sender: SealedSender,
+    envelope: Envelope,
+) -> Result<String> {
+    sealed::seal(&recipient, &envelope_id, &sender, &envelope)
+}
+
 #[uniffi::export]
 pub fn protocol_id() -> String {
     PROTOCOL.to_owned()
+}
+
+/// The `protocol` of a sealed envelope, `sealed-v1` (since 0.10.0).
+#[uniffi::export]
+pub fn sealed_protocol_id() -> String {
+    SEALED_PROTOCOL.to_owned()
 }
 
 fn sign_key(

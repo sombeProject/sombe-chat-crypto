@@ -538,6 +538,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "hpke"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f512e325a1a71bf3273fb9b7fc9e5d96dac136fb4a95d0e6637001b12ea3e09"
+dependencies = [
+ "aead",
+ "chacha20poly1305",
+ "curve25519-dalek",
+ "hkdf",
+ "hybrid-array",
+ "rand_core",
+ "sha2",
+ "subtle",
+ "x25519-dalek",
+ "zeroize",
+]
+
+[[package]]
 name = "hybrid-array"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -913,11 +931,13 @@ checksum = "e8e2fb0f499abb4d162f2bedad68f5ef91a1682b5a03596ddb67efd37768d100"
 
 [[package]]
 name = "sombe-chat-crypto"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "bs58",
  "chacha20poly1305",
  "hkdf",
+ "hpke 0.15.1",
+ "rand_core",
  "serde",
  "serde_json",
  "sha2",
@@ -1234,7 +1254,7 @@ dependencies = [
  "getrandom",
  "hkdf",
  "hmac",
- "hpke",
+ "hpke 0.14.1",
  "matrix-pickle",
  "prost",
  "rand",

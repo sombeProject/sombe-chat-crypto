@@ -37,7 +37,10 @@ jobs:
         run: rustup show && rustup component add rustfmt clippy
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy --all-targets --features vectors -- -D warnings
       - run: cargo test --locked
+      # The vectors are what the module writes (fixed keys and randomness, never in the app).
+      - run: cargo test --locked --features vectors
 
   # The SOMBE app builds with Kotlin 1.7.21: the generated bindings must compile
   # with exactly that compiler, and work against the optimized library.

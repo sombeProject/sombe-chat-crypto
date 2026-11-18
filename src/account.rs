@@ -1,6 +1,6 @@
 //! The account key (since 0.7.0): the Ed25519 key that holds a ChatPay account, drawn
 //! from the wallet key. Only this module ever sees its private half: it derives it, seals
-//! it, and makes every signature it gives (identity statement v3, sign in, account move,
+//! it, and makes every signature it gives (identity statement v4, sign in, account move,
 //! rotation), after checking the exact form of each text. No public function returns the
 //! seed or the private key, and none signs a free text.
 //!
@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 use vodozemac::{base64_decode, base64_encode, Ed25519PublicKey, Ed25519SecretKey, Ed25519Signature};
 use zeroize::Zeroizing;
 
-use crate::{statement, ChatCrypto, ChatCryptoError};
+use crate::{statement, ChatCrypto, ChatCryptoError, ChatSealingKey};
 
 type Result<T> = std::result::Result<T, ChatCryptoError>;
 
@@ -55,14 +55,14 @@ pub struct DerivedAccount {
     pub card: WalletCard,
 }
 
-/// An identity statement v3, signed by the identity and by the account key.
+/// An identity statement (v4 since 0.10.0), signed by the identity and by the account key.
 #[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
 pub struct SignedStatement {
-    /// The whole text, seven lines, the last one `identity_signature:<base64>`.
+    /// The whole text, eight lines, the last one `identity_signature:<base64>`.
     pub statement: String,
-    /// Base64 without padding, by the identity's ed25519 key, over the first six lines.
+    /// Base64 without padding, by the identity's ed25519 key, over the first seven lines.
     pub identity_signature: String,
-    /// Base58, by the account key, over the seven lines.
+    /// Base58, by the account key, over the eight lines.
     pub account_signature: String,
 }
 
@@ -166,14 +166,17 @@ impl ChatAccountKey {
         self.generation
     }
 
-    /// Builds the identity statement v3 of `account`, has the identity sign its first six
-    /// lines, then signs the seven lines with this account key.
+    /// Builds the identity statement v4 of `account` and its sealing key (since 0.10.0), has
+    /// the identity sign its first seven lines, then signs the eight lines with this account
+    /// key. A statement v3 is no longer written.
     pub fn sign_identity_statement(
         &self,
         account: Arc<ChatCrypto>,
+        sealing: Arc<ChatSealingKey>,
         created_at: String,
     ) -> Result<SignedStatement> {
-        let body = statement::body(&self.public_key, &account.identity_keys(), &created_at)?;
+        let sealing = sealing.public_key();
+        let body = statement::body(&self.public_key, &account.identity_keys(), Some(&sealing), &created_at)?;
         let identity_signature = account.sign_text(&body);
         let statement = statement::build(&body, &identity_signature);
         let account_signature = self.sign(&statement);

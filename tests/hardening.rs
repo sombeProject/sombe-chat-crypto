@@ -35,6 +35,7 @@ fn raw_statement(
         account_public_key,
         curve25519_key: curve25519_key.to_owned(),
         ed25519_key: ed25519_key.to_owned(),
+        sealing_key: None,
         created_at: created_at.to_owned(),
         identity_signature,
         account_signature: b58(&account.sign(statement.as_bytes()).to_bytes()),
@@ -104,13 +105,15 @@ fn a_rotation_to_an_identity_dated_far_ahead_does_not_hold() {
     let old = derive_account_key(wallet.clone(), 1).unwrap();
     let rotated = old.key.rotate(wallet).unwrap();
     let olm = device();
+    let sealing = ChatSealingKey::generate().unwrap();
     let identity_of = |account: &ChatAccountKey, created: &str| {
-        let signed = account.sign_identity_statement(olm.clone(), created.into()).unwrap();
+        let signed = account.sign_identity_statement(olm.clone(), sealing.clone(), created.into()).unwrap();
         let keys = olm.identity_keys();
         verify_identity(StatementFields {
             account_public_key: account.public_key(),
             curve25519_key: keys.curve25519_key,
             ed25519_key: keys.ed25519_key,
+            sealing_key: Some(sealing.public_key()),
             created_at: created.into(),
             identity_signature: signed.identity_signature,
             account_signature: signed.account_signature,

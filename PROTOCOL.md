@@ -11,7 +11,8 @@ the account key drawn from the person's Solana wallet, an identity signed by tha
 signed one time keys, the envelope, the content format, and the safety number two people
 compare. Nothing here invents new cryptography: the account key uses HKDF-SHA256
 (RFC 5869), Ed25519 and XChaCha20-Poly1305, from the RustCrypto crates `hkdf` and
-`chacha20poly1305`.
+`chacha20poly1305`; the sealed sender (since 0.10.0) uses HPKE (RFC 9180), from the
+crate [`hpke`](https://github.com/rozbb/rust-hpke), one suite only.
 
 0.7.1 changes no text and no signature: it refuses dates that do not exist or lie far
 ahead, keys written with base64 padding, and base58 fields too long to be a key or a
@@ -41,6 +42,17 @@ of a kind strictly, so it refuses an acceptance that carries an access key as
 to 0.9.0 together. A 0.8.1 module reads the `access_key` kind as `UnsupportedContent`
 (authentic, not shown). `vectors/v5.json` is frozen in turn.
 
+0.10.0 adds the sealed sender (*Sealed sender*): an Olm envelope sealed with HPKE for one
+identity of a contact, so that the server, which takes it without a token, does not learn
+who sent it. Each identity gets a sealing key, published in a new identity statement
+version 4 (*Identity*), and a new `identity_statement` kind gives it to existing contacts.
+The module now writes only statements v4, and reads v3 and v4: the server serves both
+while phones move over, and the app refuses a v3 for a contact once it saw a v4 of theirs.
+`ChatAccountKey.sign_identity_statement` takes the sealing key (`ChatSealingKey`);
+`StatementFields` and `VerifiedIdentity` carry `sealing_key`, absent for a v3. A 0.9.0
+module reads a statement v4 as a v3 and refuses it (`InvalidSignature`), and reads the
+`identity_statement` kind as `UnsupportedContent`. `vectors/v6.json` is frozen in turn.
+
 `vectors/v1.json` holds test vectors written by 0.4.0 (its identity statement and safety
 number are no longer read since 0.7.0; its keys, sessions and version 1 contents still
 are), `vectors/v2.json` those of content version 2 (since 0.5.0; wallet card and payment
@@ -53,7 +65,15 @@ refused, with the test signing seeds; the server replays it too. `vectors/v5.jso
 0.8.1) holds content version 4 with its binding. `vectors/v6.json` (since 0.9.0) holds
 the access key derived from two profile keys with its verifier, keys refused for their
 form, the `access_key` content, an acceptance with and without an access key, and contents
-refused; the server replays its verifiers.
+refused; the server replays its verifiers. `vectors/v7.json` (since 0.10.0) holds the
+statement v4 signed with raw test keys (written from this text, not by the module) and
+statements refused, a sealing key with its pickle, envelopes sealed for it (one per Olm
+message type, with their clear text and the fixed randomness that gives the same bytes)
+and sealed envelopes refused, and the `identity_statement` content with contents refused;
+the server replays its statements. `vectors/rfc9180-base-x25519-sha256-chacha20poly1305.json`
+holds the RFC 9180 test vectors of the HPKE suite, unchanged from the CFRG file; the
+module's tests replay its key derivation, its encapsulation, all 257 encryptions and its
+exports.
 
 ## Account key (since 0.7.0)
 
@@ -218,6 +238,31 @@ also be a date and a time that exist (month 1 to 12, a day of that month, hour u
 minute and second up to 59): `2026-02-30T00:00:00Z` is `InvalidStatement`, when signed and
 when verified.
 
+Since 0.10.0 the module writes version 4, the same text with another header and one more
+line before the identity's signature:
+
+```
+SOMBE chat identity v4
+protocol:olm-v1
+account:<account key, base58>
+curve25519:<identity curve25519 key>
+ed25519:<identity ed25519 key>
+created:<ISO 8601 UTC>
+sealing:<sealing key of the identity, X25519, base64 without padding of 32 bytes>
+identity_signature:<signature of the seven lines above by the identity ed25519 key, base64>
+```
+
+The identity signs the first seven lines, the sealing key with them, and the account key
+signs the eight. `sign_identity_statement(account, sealing, created_at)` writes it. The
+sealing key is used for nothing but the sealed sender, never for Olm: no key serves two
+protocols. It changes only with the identity. A reader rebuilds a v4 when the columns carry
+`sealing_key` (base64 without padding of 32 bytes, the one spelling of its bytes, or
+`InvalidKey`) and a v3 when they do not, so a v4 given without its sealing key, a v3 text
+with a sealing line or a v4 header without one never verify (`InvalidSignature`).
+`VerifiedIdentity.sealing_key` is present exactly for a v4. The module never tells a
+contact's v3 from a later downgrade: the app keeps, for each contact, whether it saw a v4,
+and then refuses a v3, so that a server cannot force the identified path back.
+
 The server stores and returns only the fields, never the text. A verifier calls
 `verify_identity` with those fields (`account_public_key`, `curve25519_key`,
 `ed25519_key`, `created_at`, `identity_signature`, `account_signature`): the module
@@ -367,6 +412,73 @@ counts in. The server therefore sees, while it deposits, that a sender it knows 
 key. It never keeps the key itself. The key opens no content: it only lets an envelope
 count among a person's contacts.
 
+## Sealed sender (since 0.10.0)
+
+The mailbox takes a sealed envelope without a token: the server checks the recipient's
+access key, not who sends. The envelope then carries the sender inside the seal.
+
+**Sealing key.** `ChatSealingKey.generate()` draws 32 bytes from the system and derives the
+X25519 key pair from them with HPKE's `DeriveKeyPair`. The private key stays in the module
+(erased when dropped). `pickle(pickle_key)` writes it under a 32 byte key: base64 without
+padding of `0x01`, a fresh 24 byte nonce, then XChaCha20-Poly1305 of the 32 private key
+bytes (written clamped, RFC 9180 7.1.2), with the associated data
+`sombe:sealing_key_pickle:v1`. `restore(pickle, pickle_key)` opens it; anything else is
+`InvalidPickle`. `public_key()` is the `sealing:` line.
+
+**Seal.** `seal(recipient, envelope_id, sender, envelope)` uses HPKE (RFC 9180), base mode,
+DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, ChaCha20Poly1305 (suite `0x0020`, `0x0001`,
+`0x0003`), single shot, to `recipient.sealing_key`, with
+
+```
+info = "sombe:sealed:1"
+aad  = recipient_account_id + "\n" + recipient_identity_id + "\n" + envelope_id
+```
+
+each a lower case UUID, no trailing newline. The sealed envelope's `ciphertext` is base64
+without padding of the 32 byte encapsulated key followed by the HPKE ciphertext (clear text
+and 16 byte tag). Before sealing, the module checks the recipient's key, the ids, that the
+sender's statement is a v4 whose signatures hold (`InvalidKey`, `InvalidMessage`,
+`InvalidStatement`, `InvalidSignature`), and that the Olm envelope is `olm-v1` with
+`olm_type` 0 or 1. A recipient key that gives no shared secret (a low order point) is
+`Encryption`. The ephemeral key is 32 bytes drawn from the system before the call; a seal
+that would draw anything else is refused (`Encryption`), so a change in the library is
+never silent.
+
+**Clear text.** A JSON object, these fields in this order, nothing else:
+
+| Field | Value |
+|---|---|
+| `v` | `1` (a JSON integer) |
+| `sender_account_id`, `sender_identity_id` | lower case UUIDs |
+| `account_public_key`, `curve25519_key`, `ed25519_key`, `sealing_key`, `created_at`, `identity_signature`, `account_signature` | the columns of the sender's statement v4 |
+| `olm_type` | `0` or `1` |
+| `ciphertext` | the Olm message, base64 without padding, as in *Envelope* |
+| `pad` | spaces |
+
+The whole text is a multiple of 256 bytes. Three fields vary in length from one sender to
+another (the account key and the account signature in base58, `created_at` with or without
+milliseconds), so the pad is counted as if they had their longest length (45, 89 and 24
+characters): two senders give the same size for the same Olm message. The Olm message
+inside already has the size bucket of its content.
+
+**Open.** `open_sealed(ciphertext, my_account_id, my_identity_id, envelope_id)` on my
+sealing key opens with my ids and the element's id, so a sealed envelope copied to another
+recipient, identity or id does not open. It reads the clear text strictly (a multiple of
+256 bytes, exactly the fields above in their order, `v` 1, lower case UUIDs, a statement v4
+whose own signatures hold, `olm_type` 0 or 1, a non empty base64 ciphertext, a pad of
+spaces). Any failure is `InvalidSealed`, with no detail. It returns the sender (ids and
+statement columns) and the Olm `Envelope`.
+
+**What the app checks.** The module does not know the contacts. Before it trusts a sealed
+envelope, the app checks that `sender.account_id` is an active contact, that
+`verify_identity(sender.statement)` names the account key pinned for that contact, and that
+its Olm keys and the identity id are the ones pinned for them. Only then does it call
+`decrypt_from` with the pinned keys, and `decode_content` with the sealed sender's account
+id. HPKE base mode does not authenticate the sender, and does not need to: the statement
+signed by the pinned account key and the Olm session do; the seal only hides the sender
+from the server. A server that writes a statement under its own account key and someone
+else's account id gets a seal that opens, and fails the account key check.
+
 ## Envelope
 
 What the server stores and relays for each message:
@@ -376,6 +488,10 @@ What the server stores and relays for each message:
 | `protocol` | `olm-v1` |
 | `olm_type` | `0`: a first message, which opens a session. `1`: a following message. |
 | `ciphertext` | The Olm message, unpadded base64. |
+
+A sealed envelope (since 0.10.0) has `protocol` `sealed-v1` (`sealed_protocol_id()`), the
+recipient's identity id and the sealed `ciphertext` (*Sealed sender*), and no `olm_type`:
+the Olm type is inside the seal.
 
 The server also records which identities sent and received it, so a phone can tell
 which identity a message was meant for.
@@ -402,7 +518,7 @@ discarding any event that does not comply):
 Fields come in this order: `v`, `kind`, `sender_account_id`, `sender_ed25519`,
 `recipient_account_id`, `recipient_ed25519`, `envelope_id` (every kind but `typing`), the
 fields of the kind as in version 2, then `pad`. Every kind of version 2 exists in version 4
-with the same fields, plus three (since 0.8.0) and one (since 0.9.0):
+with the same fields, plus three (since 0.8.0), one (since 0.9.0) and one (since 0.10.0):
 
 | `kind` | Its own fields | Channel |
 |---|---|---|
@@ -410,6 +526,7 @@ with the same fields, plus three (since 0.8.0) and one (since 0.9.0):
 | `contact_accept` | `request_id` (the envelope id of the request it accepts), `attestation`, `attestation_signature` | mailbox |
 | `contact_cancel` | `request_id` (the envelope id of the request it withdraws) | mailbox |
 | `access_key` (since 0.9.0) | `access_key` (base64 without padding of 16 bytes), `generation` (JSON integer, 1 to 2147483647) | mailbox |
+| `identity_statement` (since 0.10.0) | `account_public_key`, `curve25519_key`, `ed25519_key`, `sealing_key`, `created_at`, `identity_signature`, `account_signature`: the columns of the sender's statement v4 | mailbox |
 
 Since 0.9.0 `contact_accept` may also carry, after `attestation_signature`,
 `access_key` and `access_key_generation`: the accepting account's access key and its
@@ -418,6 +535,13 @@ generation, with the same forms as the `access_key` kind. Both come together or 
 spelling, or a generation that is not a JSON integer from 1 to 2147483647 is
 `InvalidContent`. The `access_key` kind is read only in version 4: in version 2 it is
 `UnsupportedContent`.
+
+The `identity_statement` kind (since 0.10.0) is read only in version 4 too. Its statement
+must be a v4 whose own signatures hold, and its `ed25519_key` must be the content's
+`sender_ed25519` (the identity whose session carried it); otherwise `InvalidContent`. It
+falls in the 1024 byte bucket. The app still checks it against the account key and the
+identity pinned for the contact, and keeps its sealing key only if `created_at` is later
+than the statement it keeps.
 
 The module checks only the form of an attestation here. Its alias comes out only of
 `verify_alias_attestation` (*Alias attestation*); no kind carries an alias of its own. The
@@ -813,8 +937,10 @@ is verified is stored only on the phone that verified it, never sent to the serv
 
 ## What this does not protect
 
-- Metadata: the server sees who talks to whom and when (no sealed sender, no hidden
-  timing), and the size bucket of each message. Payments are also public on the Solana
+- Metadata: on the identified path, the server sees who talks to whom and when, and the
+  size bucket of each message. The sealed sender (since 0.10.0) hides the sender of a
+  sealed envelope from the server, not its recipient, its time, its size, nor the IP
+  address it comes from. Payments are also public on the Solana
   blockchain, wallet to wallet.
 - The very first contact trusts the account key the server gives for that contact. From
   then on the phone pins it, and another key without a rotation proof pauses the contact.
@@ -838,6 +964,9 @@ is verified is stored only on the phone that verified it, never sent to the serv
 - The wallet seed passes through the app's memory (the JVM) when the account key is
   derived or rotated; it is already there for Solana. The module erases its own copies,
   not the app's, nor the buffer UniFFI copies the call's bytes into on the way in.
-- No post quantum protection (Olm has none).
+- No post quantum protection (Olm has none, nor does the X25519 suite of the sealed
+  sender).
+- The crate `hpke` (sealed sender) has no published paid audit. Its version is pinned with
+  `=`, and the RFC 9180 test vectors of our suite are replayed in this repository's CI.
 - One phone per wallet. A restored wallet gets a new identity and cannot read older
   messages.

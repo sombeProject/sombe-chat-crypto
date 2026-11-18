@@ -1,5 +1,5 @@
-//! The identity statement (version 3 since 0.7.0), signed by the identity and by the
-//! account key, the text a one time key signature covers, and how a contact's identity
+//! The identity statement (version 3 since 0.7.0, version 4 with a sealing key since
+//! 0.10.0), signed by the identity and by the account key, the text a one time key signature covers, and how a contact's identity
 //! is judged against the one pinned for them. The formats are described in PROTOCOL.md;
 //! any change here is a protocol change.
 
@@ -13,24 +13,34 @@ use crate::{
     StatementFields, VerifiedIdentity, PROTOCOL,
 };
 
-const STATEMENT_HEADER: &str = "SOMBE chat identity v3";
+const STATEMENT_HEADER_V3: &str = "SOMBE chat identity v3";
+const STATEMENT_HEADER_V4: &str = "SOMBE chat identity v4";
 const ONE_TIME_KEY_HEADER: &str = "SOMBE one-time key v1";
 /// How far ahead of this phone's clock a statement may be dated (since 0.7.1): the bound
 /// the server applies too, checked again here because the server is not trusted.
 const MAX_AHEAD_SECONDS: i64 = 24 * 60 * 60;
 
-/// The first six lines of a statement: what the identity's own ed25519 key signs.
+/// What the identity's own ed25519 key signs: the first six lines of a statement v3, or
+/// the seven of a statement v4, whose last line is `sealing:` (since 0.10.0).
 pub(crate) fn body(
     account_public_key: &str,
     keys: &IdentityKeys,
+    sealing_key: Option<&str>,
     created_at: &str,
 ) -> Result<String, ChatCryptoError> {
     account::public_key(account_public_key, "account key")?;
     check_timestamp(created_at)?;
-    Ok(format!(
-        "{STATEMENT_HEADER}\nprotocol:{PROTOCOL}\naccount:{account_public_key}\ncurve25519:{}\ned25519:{}\ncreated:{created_at}",
+    let header = if sealing_key.is_some() { STATEMENT_HEADER_V4 } else { STATEMENT_HEADER_V3 };
+    let mut body = format!(
+        "{header}\nprotocol:{PROTOCOL}\naccount:{account_public_key}\ncurve25519:{}\ned25519:{}\ncreated:{created_at}",
         keys.curve25519_key, keys.ed25519_key
-    ))
+    );
+    if let Some(sealing_key) = sealing_key {
+        crate::sealed::public_key(sealing_key)?;
+        body.push_str("\nsealing:");
+        body.push_str(sealing_key);
+    }
+    Ok(body)
 }
 
 /// The whole statement the account key signs: the body, then the identity's signature of it.
@@ -38,8 +48,9 @@ pub(crate) fn build(body: &str, identity_signature: &str) -> String {
     format!("{body}\nidentity_signature:{identity_signature}")
 }
 
-/// Rebuilds the seven lines from the server's columns, then checks the identity's
-/// signature of the first six and the account key's signature of all seven.
+/// Rebuilds the text from the server's columns (seven lines for a v3, eight for a v4 that
+/// has `sealing_key`), then checks the identity's signature of the body and the account
+/// key's signature of the whole text.
 pub(crate) fn verify(fields: &StatementFields) -> Result<VerifiedIdentity, ChatCryptoError> {
     let account_key = account::public_key(&fields.account_public_key, "account key")?;
     // One spelling per key (since 0.7.1): the text is signed and compared as written.
@@ -53,7 +64,7 @@ pub(crate) fn verify(fields: &StatementFields) -> Result<VerifiedIdentity, ChatC
         curve25519_key: fields.curve25519_key.clone(),
         ed25519_key: fields.ed25519_key.clone(),
     };
-    let body = body(&fields.account_public_key, &keys, &fields.created_at)?;
+    let body = body(&fields.account_public_key, &keys, fields.sealing_key.as_deref(), &fields.created_at)?;
 
     let identity_signature = Ed25519Signature::from_base64(&fields.identity_signature)
         .map_err(|_| ChatCryptoError::InvalidSignature)?;
@@ -73,6 +84,7 @@ pub(crate) fn verify(fields: &StatementFields) -> Result<VerifiedIdentity, ChatC
         curve25519_key: fields.curve25519_key.clone(),
         ed25519_key: fields.ed25519_key.clone(),
         created_at: fields.created_at.clone(),
+        sealing_key: fields.sealing_key.clone(),
     })
 }
 
