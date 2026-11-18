@@ -334,6 +334,7 @@ fn my_own_identity_for_the_safety_number() {
         curve25519_key: keys.curve25519_key,
         ed25519_key: keys.ed25519_key,
         created_at: "2026-11-11T09:00:00Z".into(),
+        sealing_key: None,
     };
     let contact_key = derive_account_key(vec![43; 32], 1).unwrap().key;
     let contact_device = device();
@@ -343,6 +344,7 @@ fn my_own_identity_for_the_safety_number() {
         curve25519_key: contact_keys.curve25519_key,
         ed25519_key: contact_keys.ed25519_key,
         created_at: "2026-11-11T09:00:00Z".into(),
+        sealing_key: None,
     };
     assert_eq!(safety_number(mine.clone(), contact.clone()), safety_number(contact, mine));
 }

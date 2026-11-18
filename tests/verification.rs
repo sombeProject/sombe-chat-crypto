@@ -13,14 +13,16 @@ const CREATED: &str = "2026-10-14T18:30:01.183Z";
 const LATER: &str = "2026-10-15T09:00:00Z";
 const LATEST: &str = "2026-10-16T09:00:00Z";
 
-/// The verified identity v3 of `olm` under `account`, as `verify_identity` returns it.
+/// The verified identity v4 of `olm` under `account`, as `verify_identity` returns it.
 fn identity_of(account: &ChatAccountKey, olm: &Arc<ChatCrypto>, created: &str) -> VerifiedIdentity {
-    let signed = account.sign_identity_statement(olm.clone(), created.into()).unwrap();
+    let sealing = ChatSealingKey::generate().unwrap();
+    let signed = account.sign_identity_statement(olm.clone(), sealing.clone(), created.into()).unwrap();
     let keys = olm.identity_keys();
     verify_identity(StatementFields {
         account_public_key: account.public_key(),
         curve25519_key: keys.curve25519_key,
         ed25519_key: keys.ed25519_key,
+        sealing_key: Some(sealing.public_key()),
         created_at: created.into(),
         identity_signature: signed.identity_signature,
         account_signature: signed.account_signature,

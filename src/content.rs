@@ -36,13 +36,17 @@
 //! Since 0.9.0 version 4 also carries the access key: an acceptance may give the accepting
 //! account's, and the `access_key` kind gives one to a contact. Both are read only in
 //! version 4. A 0.8.1 module refuses an acceptance that carries one (an unknown field).
+//!
+//! Since 0.10.0 version 4 also carries `identity_statement`: the sender's own statement v4,
+//! which gives a contact the sealing key of the sender's identity. Its ed25519 key must be
+//! the content's `sender_ed25519`.
 
 use serde_json::{Map, Value};
 use vodozemac::{base64_decode, base64_encode};
 
 use crate::access;
 use crate::account::{max_base58_chars, AccountRotationContent, LAST_GENERATION};
-use crate::ChatCryptoError;
+use crate::{statement, ChatCryptoError, StatementFields};
 
 /// The only version `encode_content` writes (4 since 0.8.1).
 pub const CONTENT_VERSION: u8 = 4;
@@ -230,7 +234,23 @@ pub enum ContentBody {
     ContactCancel { request_id: String },
     /// Gives the sender's access key to a contact (since 0.9.0). Mailbox only, never shown.
     AccessKey { grant: AccessKeyGrant },
+    /// Gives a contact the sender's statement v4 (since 0.10.0), and with it the sealing key
+    /// of the sender's identity. Mailbox only, never shown. Its form and its own signatures
+    /// are checked, its ed25519 key is the sender's; the app still checks it against the
+    /// account key and the identity pinned for that contact.
+    IdentityStatement { statement: StatementFields },
 }
+
+/// The fields of `identity_statement`, in the order PROTOCOL.md gives.
+const STATEMENT_FIELDS: [&str; 7] = [
+    "account_public_key",
+    "curve25519_key",
+    "ed25519_key",
+    "sealing_key",
+    "created_at",
+    "identity_signature",
+    "account_signature",
+];
 
 /// The fields of `account_rotation`, in the order PROTOCOL.md gives.
 const ROTATION_FIELDS: [&str; 7] = [
@@ -384,6 +404,12 @@ pub(crate) fn encode(content: OutgoingContent) -> Result<String, ChatCryptoError
         }
         ContentBody::ContactCancel { request_id } => put_uuid(&mut map, "request_id", request_id)?,
         ContentBody::AccessKey { grant } => put_grant(&mut map, grant, "generation")?,
+        ContentBody::IdentityStatement { statement } => {
+            let statement = checked_statement(statement.clone(), &content.sender_ed25519_key)?;
+            for (name, value) in STATEMENT_FIELDS.iter().zip(statement_values(statement)) {
+                map.insert((*name).into(), Value::from(value));
+            }
+        }
     }
     pad(map)
 }
@@ -506,6 +532,7 @@ fn decode_v2_v4(mut map: Map<String, Value>, version: u8) -> Result<Decoded, Cha
         }
         "contact_cancel" if version >= 3 => &["request_id"],
         "access_key" if version >= 4 => &["access_key", "generation"],
+        "identity_statement" if version >= 4 => &STATEMENT_FIELDS,
         _ => return Err(unsupported("unknown content kind")),
     };
     // Exactly the fields of the kind: a later addition is a new version.
@@ -667,6 +694,19 @@ fn decode_v2_v4(mut map: Map<String, Value>, version: u8) -> Result<Decoded, Cha
             },
         },
         "access_key" => ContentBody::AccessKey { grant: read_grant(&map, "generation")? },
+        "identity_statement" => {
+            let statement = StatementFields {
+                account_public_key: required(&map, "account_public_key")?,
+                curve25519_key: required(&map, "curve25519_key")?,
+                ed25519_key: required(&map, "ed25519_key")?,
+                sealing_key: Some(required(&map, "sealing_key")?),
+                created_at: required(&map, "created_at")?,
+                identity_signature: required(&map, "identity_signature")?,
+                account_signature: required(&map, "account_signature")?,
+            };
+            let sender = sender_ed25519.as_deref().unwrap_or_default();
+            ContentBody::IdentityStatement { statement: checked_statement(statement, sender)? }
+        }
         "contact_cancel" => ContentBody::ContactCancel { request_id: id("request_id")? },
         _ => unreachable!("kinds were matched above"),
     };
@@ -813,7 +853,35 @@ fn kind_name(body: &ContentBody) -> &'static str {
         ContentBody::ContactAccept { .. } => "contact_accept",
         ContentBody::ContactCancel { .. } => "contact_cancel",
         ContentBody::AccessKey { .. } => "access_key",
+        ContentBody::IdentityStatement { .. } => "identity_statement",
     }
+}
+
+/// A statement v4 whose form and own signatures hold, made by the identity `sender_ed25519`.
+fn checked_statement(
+    statement: StatementFields,
+    sender_ed25519: &str,
+) -> Result<StatementFields, ChatCryptoError> {
+    if statement.sealing_key.is_none() {
+        return Err(invalid("identity_statement carries a statement v4"));
+    }
+    statement::verify(&statement).map_err(|_| invalid("the statement does not hold"))?;
+    if statement.ed25519_key != sender_ed25519 {
+        return Err(invalid("the statement is not the sender's identity"));
+    }
+    Ok(statement)
+}
+
+fn statement_values(s: StatementFields) -> [String; 7] {
+    [
+        s.account_public_key,
+        s.curve25519_key,
+        s.ed25519_key,
+        s.sealing_key.unwrap_or_default(),
+        s.created_at,
+        s.identity_signature,
+        s.account_signature,
+    ]
 }
 
 /// Writes `access_key`, then its generation under `generation_name`.

@@ -7,19 +7,22 @@ no business logic: no networking, no storage, no payments.
 
 - [PROTOCOL.md](PROTOCOL.md): the account key drawn from the wallet, identity signed by
   that key, one time keys, envelope, content format, session rules, identity pinning and
-  rotation, safety number.
+  rotation, safety number, and (since 0.10.0) the sealed sender.
 - [vectors/v1.json](vectors/v1.json): test vectors written by 0.4.0 (frozen).
 - [vectors/v2.json](vectors/v2.json): content version 2, one vector per kind (since 0.5.0; wallet card and payments since 0.6.0).
 - [vectors/v3.json](vectors/v3.json): the account key, the texts it signs, its rotation and the safety number v2 (since 0.7.0).
 - [vectors/v4.json](vectors/v4.json): alias attestations accepted and refused (since 0.8.0), and the content version 3 of 0.8.0, no longer read (frozen).
 - [vectors/v5.json](vectors/v5.json): content version 4 with its binding, account ids and identity keys (since 0.8.1, frozen).
-- [vectors/v6.json](vectors/v6.json): the access key and its verifier, the `access_key` content and an acceptance with and without an access key (since 0.9.0).
+- [vectors/v6.json](vectors/v6.json): the access key and its verifier, the `access_key` content and an acceptance with and without an access key (since 0.9.0, frozen).
+- [vectors/v7.json](vectors/v7.json): the identity statement v4, a sealing key and its pickle, envelopes sealed and refused, the `identity_statement` content (since 0.10.0).
+- [vectors/rfc9180-base-x25519-sha256-chacha20poly1305.json](vectors/rfc9180-base-x25519-sha256-chacha20poly1305.json): the RFC 9180 test vectors of the one HPKE suite the sealed sender uses, unchanged from the CFRG file (source and SHA-256 inside).
 
 ## Build and test
 
 ```bash
-cargo test                      # Rust tests and test vectors
-cargo run --bin make-vectors    # regenerates vectors/v6.json (deterministic); v1.json to v5.json are frozen
+cargo test                                        # Rust tests and test vectors
+cargo test --features vectors                     # also checks v7.json is what the module writes
+cargo run --features vectors --bin make-vectors   # regenerates vectors/v7.json (deterministic); v1.json to v6.json are frozen
 ```
 
 vodozemac is a crates.io dependency pinned with `=`, never copied into this repository.
@@ -65,7 +68,8 @@ val rotation = derived.key.rotate(walletSeed)     // new key, its card and the p
 val proof = proveRotation(walletSeed, announced, current)  // from the key a contact pinned
 
 val account = ChatCrypto.createAccount()          // or ChatCrypto.restoreAccount(pickle, key)
-val signed = derived.key.signIdentityStatement(account, createdAt)  // statement v3
+val sealing = ChatSealingKey.generate()           // or ChatSealingKey.restore(pickle, key); keep sealing.pickle(key)
+val signed = derived.key.signIdentityStatement(account, sealing, createdAt)  // statement v4 (since 0.10.0)
 val keys = account.generateOneTimeKeys(50u)       // publish, then account.markKeysPublished()
 
 val contact = verifyIdentity(statementFields)     // the server's columns; the module rebuilds the text
@@ -99,6 +103,15 @@ val verifier = accessKeyVerifier(accessKey)          // SHA-256 of those bytes: 
 val accept = ContentBody.ContactAccept(requestId, attestation, attestationSignature,
     AccessKeyGrant(accessKey, generation))           // null in an acceptance written by 0.8.1
 val give = ContentBody.AccessKey(AccessKeyGrant(accessKey, generation)) // a higher generation replaces
+
+// Sealed sender (since 0.10.0): the server takes the envelope without knowing who sent it.
+val ciphertext = seal(SealedRecipient(peerAccountId, peerIdentityId, contact.sealingKey!!), envelopeId,
+    SealedSender(myAccountId, myIdentityId, myStatementFields), sent.envelope) // protocol sealedProtocolId()
+val opened = sealing.openSealed(element.ciphertext, myAccountId, myIdentityId, element.id) // InvalidSealed
+val sender = verifyIdentity(opened.sender.statement)  // then: an active contact, the pinned account key,
+                                                      // the pinned Olm keys and identity id; only then
+val readSealed = account.decryptFrom(pinnedKeys, sessions, opened.envelope, pickleKey)
+val tell = ContentBody.IdentityStatement(myStatementFields) // gives contacts my sealing key
 ```
 
 Sessions travel in and out of each call as encrypted pickles, so the app can store the
