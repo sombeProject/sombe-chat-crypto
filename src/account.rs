@@ -368,7 +368,12 @@ fn derive_seed(wallet: &[u8; SEED_BYTES], generation: u16) -> Zeroizing<[u8; SEE
 }
 
 /// HKDF-SHA256 (RFC 5869). An empty salt is 32 zero bytes, as the RFC says.
-fn hkdf_sha256(salt: &[u8], ikm: &[u8], info: &[u8], okm: &mut [u8]) -> std::result::Result<(), ()> {
+pub(crate) fn hkdf_sha256(
+    salt: &[u8],
+    ikm: &[u8],
+    info: &[u8],
+    okm: &mut [u8],
+) -> std::result::Result<(), ()> {
     let salt = if salt.is_empty() { None } else { Some(salt) };
     Hkdf::<Sha256>::new(salt, ikm).expand(info, okm).map_err(|_| ())
 }
@@ -412,7 +417,7 @@ fn seal_with_nonce(
     Ok(base64_encode(out))
 }
 
-fn cipher(key: &[u8; SEED_BYTES]) -> Result<XChaCha20Poly1305> {
+pub(crate) fn cipher(key: &[u8; SEED_BYTES]) -> Result<XChaCha20Poly1305> {
     XChaCha20Poly1305::new_from_slice(key).map_err(|_| invalid_key("sealing key must be 32 bytes".to_owned()))
 }
 
@@ -429,7 +434,7 @@ fn device_fingerprint(der: &[u8]) -> Result<String> {
     Ok(hex(&Sha256::digest(der)))
 }
 
-fn is_lower_uuid(id: &str) -> bool {
+pub(crate) fn is_lower_uuid(id: &str) -> bool {
     let groups: Vec<&str> = id.split('-').collect();
     groups.len() == 5
         && groups.iter().zip([8, 4, 4, 4, 12]).all(|(group, len)| {
@@ -446,7 +451,7 @@ fn check_generation(generation: u16) -> Result<()> {
 }
 
 /// Moves a secret out of the call's buffer into an array erased on drop.
-fn secret_array(secret: Vec<u8>, name: &str) -> Result<Zeroizing<[u8; SEED_BYTES]>> {
+pub(crate) fn secret_array(secret: Vec<u8>, name: &str) -> Result<Zeroizing<[u8; SEED_BYTES]>> {
     let secret = Zeroizing::new(secret);
     let mut array = Zeroizing::new([0u8; SEED_BYTES]);
     if secret.len() != SEED_BYTES {
