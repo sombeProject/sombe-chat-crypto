@@ -5,6 +5,10 @@
 //! `cargo run --features vectors --bin make-vectors`. Running it again gives the same file;
 //! tests/alias_vectors.rs checks it.
 //!
+//! Also writes vectors/v9.json (since 0.12.0): the secret of the alias seal (two epochs, two
+//! accounts, epochs refused), the normalization of an alias as the ChatPay API does it, and
+//! the seals the API makes from them. tests/seal_vectors.rs checks it.
+//!
 //! vectors/v1.json to vectors/v7.json stay as they are and are still checked; their
 //! generators are in the history of this file (v7.json: commit 964067a). Never use these ids,
 //! seeds or keys for anything real.
@@ -60,6 +64,112 @@ fn main() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vectors/v8.json");
     std::fs::write(&path, serde_json::to_string_pretty(&vectors).unwrap() + "\n").unwrap();
     println!("wrote {}", path.display());
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vectors/v9.json");
+    std::fs::write(&path, serde_json::to_string_pretty(&seal_vectors()).unwrap() + "\n").unwrap();
+    println!("wrote {}", path.display());
+}
+
+const EPOCH: [u8; 16] = [0xe1; 16];
+const OTHER_EPOCH: [u8; 16] = [0xe2; 16];
+
+/// What the ChatPay API's `normalizeAlias` gives (JavaScript `trim`, then `toLowerCase`, then
+/// `^[a-z][a-z0-9_]{2,19}$`, then the five reserved words): `None` when it refuses.
+const NORMALIZATION: &[(&str, Option<&str>, &str)] = &[
+    ("margincall", Some("margincall"), "already normal"),
+    ("  MarginCall  ", Some("margincall"), "spaces trimmed, lower case"),
+    ("\tbob_42\n", Some("bob_42"), "tab and line feed trimmed"),
+    ("\u{a0}alice\u{3000}", Some("alice"), "no break space and ideographic space trimmed"),
+    ("\u{feff}alice", Some("alice"), "JavaScript trims U+FEFF (Rust trim does not)"),
+    ("\u{2028}alice\u{2029}", Some("alice"), "line and paragraph separators trimmed"),
+    ("\u{85}alice", None, "JavaScript keeps U+0085 (Rust trim removes it)"),
+    ("alice\u{200b}", None, "a zero width space is not trimmed"),
+    ("\u{212a}elvin", Some("kelvin"), "the Kelvin sign lowers to k"),
+    ("\u{130}stanbul", None, "U+0130 lowers to i and a combining dot"),
+    ("\u{ff41}lice", None, "full width letters stay full width"),
+    ("ab", None, "too short"),
+    ("abc", Some("abc"), "shortest"),
+    ("a1234567890123456789", Some("a1234567890123456789"), "longest"),
+    ("a12345678901234567890", None, "too long"),
+    ("1alice", None, "starts with a digit"),
+    ("_alice", None, "starts with an underscore"),
+    ("ali-ce", None, "hyphen"),
+    ("ali ce", None, "inner space"),
+    ("binance", Some("binance"), "refused for a new alias, still normalized (a held alias keeps its seal)"),
+    ("admin", None, "reserved"),
+    ("Support", None, "reserved, after lower case"),
+    ("s_o_m_b_e", None, "reserved, underscores removed"),
+    ("system", None, "reserved"),
+    ("wallet", None, "reserved"),
+];
+
+/// HMAC-SHA256(secret, alias), the seal the ChatPay API keeps. HKDF-Extract with the secret as
+/// salt is exactly that HMAC (RFC 5869). The module never makes a seal: the server does.
+fn seal(secret: &str, alias: &str) -> String {
+    let (prk, _) = Hkdf::<Sha256>::extract(Some(&unbase64(secret)), alias.as_bytes());
+    base64_std(&prk)
+}
+
+fn seal_vectors() -> Value {
+    let key = derive_alias_vault_key(WALLET_SEED.to_vec(), ACCOUNT.into()).unwrap();
+    let other = derive_alias_vault_key(WALLET_SEED.to_vec(), OTHER_ACCOUNT.into()).unwrap();
+    let secret = |k: &AliasVaultKey, epoch: &[u8]| k.alias_seal_secret(base64_std(epoch)).unwrap();
+    let secrets = [
+        (ACCOUNT, EPOCH, secret(&key, &EPOCH)),
+        (ACCOUNT, OTHER_EPOCH, secret(&key, &OTHER_EPOCH)),
+        (OTHER_ACCOUNT, EPOCH, secret(&other, &EPOCH)),
+    ];
+    assert!(secrets[0].2 != secrets[1].2 && secrets[0].2 != secrets[2].2);
+
+    let unpadded = base64_std(&EPOCH).trim_end_matches('=').to_owned();
+    let mut loose = base64_std(&EPOCH);
+    loose.replace_range(21..22, "R");
+    let refused: Vec<Value> = [
+        (base64_std(&[0xe1; 15]), "15 bytes"),
+        (base64_std(&[0xe1; 17]), "17 bytes"),
+        (unpadded, "no padding"),
+        (loose, "not canonical"),
+        (hex(&EPOCH), "hex, not base64"),
+    ]
+    .into_iter()
+    .map(|(epoch, why)| {
+        let e = key.alias_seal_secret(epoch.clone()).unwrap_err();
+        json!({ "epoch": epoch, "why": why, "error": error_name(&e) })
+    })
+    .collect();
+
+    let normalization: Vec<Value> = NORMALIZATION
+        .iter()
+        .map(|(input, alias, why)| {
+            json!({ "input": input, "input_utf8_hex": hex(input.as_bytes()), "alias": alias, "why": why })
+        })
+        .collect();
+
+    let mut seals = Vec::new();
+    for (account, epoch, s) in &secrets {
+        for alias in ["margincall", "bob_42"] {
+            seals.push(json!({
+                "account_id": account,
+                "epoch": base64_std(epoch),
+                "secret": s,
+                "alias": alias,
+                "seal": seal(s, alias),
+            }));
+        }
+    }
+
+    json!({
+        "description": "SOMBE test vectors of sombe-chat-crypto 0.12.0: the secret of the alias seal, HKDF-SHA256 over the alias vault key of vectors/v8.json (wallet seed 0x77 repeated, derive_alias_vault_key), empty salt, info `sombe:alias_seal:1:`, the 16 epoch bytes, then the account id, 32 bytes; epochs refused; the normalization of an alias as the ChatPay API's normalizeAlias does it (alias null when refused; input_utf8_hex is the exact input); and the seal the API keeps, HMAC-SHA256(secret, normalized alias). Epoch, secret and seal are base64 standard with padding. Test seeds only.",
+        "wallet_seed": hex(&WALLET_SEED),
+        "secrets": secrets.iter().map(|(account, epoch, s)| json!({
+            "account_id": account,
+            "epoch": base64_std(epoch),
+            "secret": s,
+        })).collect::<Vec<_>>(),
+        "refused_epochs": refused,
+        "normalization": normalization,
+        "seals": seals,
+    })
 }
 
 fn base64_std(bytes: &[u8]) -> String {
