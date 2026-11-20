@@ -39,7 +39,7 @@ pub use content::{
 #[cfg(feature = "vectors")]
 pub use sealed::vectors;
 pub use sealed::{ChatSealingKey, OpenedSealed, SealedRecipient, SealedSender, SEALED_PROTOCOL};
-pub use token::PreparedAliasToken;
+pub use token::{AliasTokenCheck, PreparedAliasToken};
 pub use vault::{AliasVault, AliasVaultKey, RetiredAlias, VaultToken};
 
 uniffi::setup_scaffolding!();
@@ -578,10 +578,15 @@ pub fn alias_token_finalize(
     token::finalize(&public_key_spki, &nonce, &blinded_msg, &secret, &blind_signature)
 }
 
-/// True if `token_signature` signs the prepared message `nonce` under the key (since 0.11.0).
-/// A key or a length that is not valid is `InvalidToken`.
+/// `Valid` if `token_signature` signs the prepared message `nonce` under the key, else
+/// `BadSignature` (since 0.11.0). A key or a length that is not valid is `InvalidToken`, which
+/// is an error of the app's key, never a token to throw away.
 #[uniffi::export]
-pub fn alias_token_verify(public_key_spki: String, nonce: String, token_signature: String) -> Result<bool> {
+pub fn alias_token_verify(
+    public_key_spki: String,
+    nonce: String,
+    token_signature: String,
+) -> Result<AliasTokenCheck> {
     token::verify(&public_key_spki, &nonce, &token_signature)
 }
 

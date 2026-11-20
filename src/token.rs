@@ -37,6 +37,15 @@ const MESSAGE_BYTES: usize = 32;
 const NONCE_BYTES: usize = RANDOMIZER_BYTES + MESSAGE_BYTES;
 pub(crate) const MEMO_PREFIX: &str = "sombe-alias-token:";
 
+/// What `alias_token_verify` finds. An enum, not a `bool`, so that the app must say what it
+/// does for each case: a signature that does not hold (`BadSignature`) is not an error, and a
+/// key or a size that cannot be read is `InvalidToken`.
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AliasTokenCheck {
+    Valid,
+    BadSignature,
+}
+
 /// What `alias_token_prepare` returns: everything is base64 with padding, standard alphabet.
 #[derive(uniffi::Record, Clone, PartialEq, Eq)]
 pub struct PreparedAliasToken {
@@ -119,13 +128,14 @@ pub(crate) fn finalize(
     Ok(b64::encode(&signature))
 }
 
-/// True if `token_signature` is a signature of the prepared message `nonce` under the key.
+/// `Valid` if `token_signature` is a signature of the prepared message `nonce` under the key.
 /// An unreadable key or a text of the wrong size is `InvalidToken`.
-pub(crate) fn verify(public_key_spki: &str, nonce: &str, token_signature: &str) -> Result<bool> {
+pub(crate) fn verify(public_key_spki: &str, nonce: &str, token_signature: &str) -> Result<AliasTokenCheck> {
     let key = parse_key(public_key_spki)?;
     let (randomizer, message) = split_nonce(nonce)?;
     let signature = decode(token_signature, MODULUS_BYTES)?;
-    Ok(key.verify(&Signature(signature), Some(randomizer), message).is_ok())
+    let holds = key.verify(&Signature(signature), Some(randomizer), message).is_ok();
+    Ok(if holds { AliasTokenCheck::Valid } else { AliasTokenCheck::BadSignature })
 }
 
 /// `sombe-alias-token:` and the SHA-256 of the bytes of `blinded_msg`, in base64url without

@@ -534,6 +534,7 @@ pub(crate) fn is_uuid_v4(id: &str) -> bool {
 mod tests {
     use super::*;
 
+    const WORST_JSON_BYTES: usize = 11_564;
     const ACCOUNT: &str = "a1a1a1a1-0000-4000-8000-0000000000a1";
     const IDEM: &str = "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78";
 
@@ -716,14 +717,26 @@ mod tests {
 
     #[test]
     fn the_worst_case_fits() {
+        // Every field at its largest: a seq of 2^53, an alias and a key id of their longest
+        // size, 20 retired aliases, 10 tokens being prepared with a burn signature of 90.
         let mut v = vault();
+        v.seq = MAX_INTEGER;
+        v.alias = "abcdefghijklmnopqrst".into();
         v.retired = (0..20)
             .map(|i| RetiredAlias { alias: format!("abcdefghijklmnop{i:04}"), retired_at: MAX_INTEGER - i })
             .collect();
-        v.tokens = (0..10).map(|i| preparing(i as u8)).collect();
+        v.tokens = (0..10u8)
+            .map(|i| VaultToken::Preparing {
+                key_id: "abcdefghijklmnop".into(),
+                nonce: nonce(i),
+                blinded_msg: b64::encode(&[1; MODULUS_BYTES]),
+                secret: b64::encode(&[2; MODULUS_BYTES]),
+                idem: IDEM.into(),
+                burn_signature: Some("1".repeat(90)),
+            })
+            .collect();
         let json = written(&v);
-        // 20 retired aliases and 10 tokens being prepared: 11 376 bytes of the 16 341 allowed.
-        assert_eq!(json.len(), 11_376);
+        assert_eq!(json.len(), WORST_JSON_BYTES);
         assert!(json.len() <= MAX_JSON_BYTES);
         assert_eq!(key().open_vault(key().seal_vault(v.clone()).unwrap()).unwrap(), v);
     }

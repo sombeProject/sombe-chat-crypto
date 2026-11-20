@@ -146,7 +146,7 @@ fn tokens_are_sorted_by_their_bytes_and_not_their_text() {
 #[test]
 fn the_worst_case_fits_and_comes_back() {
     let w = &vectors()["vault"]["worst_case"];
-    assert_eq!(w["json_bytes"], 11376);
+    assert_eq!(w["json_bytes"], 11564);
     let vault = key().open_vault(s(&w["sealed"])).unwrap();
     assert_eq!(vault, vault_from(&w["vault"]));
     assert_eq!((vault.retired.len(), vault.tokens.len()), (20, 10));
@@ -157,7 +157,10 @@ fn the_token_verifies_and_is_refused_where_it_must() {
     let t = &vectors()["token"];
     let spki = s(&t["key"]["spki"]);
     let p = &t["prepared"];
-    assert!(alias_token_verify(spki.clone(), s(&p["nonce"]), s(&p["token_signature"])).unwrap());
+    assert_eq!(
+        alias_token_verify(spki.clone(), s(&p["nonce"]), s(&p["token_signature"])).unwrap(),
+        AliasTokenCheck::Valid
+    );
     assert_eq!(alias_token_memo(s(&p["blinded_msg"])).unwrap(), s(&p["memo"]));
     // The finalization of the blind signature gives that very token signature.
     let finalized = alias_token_finalize(
@@ -170,10 +173,14 @@ fn the_token_verifies_and_is_refused_where_it_must() {
     .unwrap();
     assert_eq!(finalized, s(&p["token_signature"]));
     let second = &t["second"];
-    assert!(alias_token_verify(spki.clone(), s(&second["nonce"]), s(&second["token_signature"])).unwrap());
+    assert_eq!(
+        alias_token_verify(spki.clone(), s(&second["nonce"]), s(&second["token_signature"])).unwrap(),
+        AliasTokenCheck::Valid
+    );
     for f in t["verify_false"].as_array().unwrap() {
-        assert!(
-            !alias_token_verify(spki.clone(), s(&f["nonce"]), s(&f["token_signature"])).unwrap(),
+        assert_eq!(
+            alias_token_verify(spki.clone(), s(&f["nonce"]), s(&f["token_signature"])).unwrap(),
+            AliasTokenCheck::BadSignature,
             "{}",
             f["name"]
         );

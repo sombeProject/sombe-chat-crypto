@@ -16,8 +16,9 @@ use sha2::Sha256;
 use sombe_chat_crypto::alias_vectors;
 use sombe_chat_crypto::{
     alias_token_finalize, alias_token_memo, alias_token_verify, decode_content, derive_alias_vault_key,
-    encode_content, verify_alias_change, AliasVault, AliasVaultKey, ChatCryptoError, ContentBinding,
-    ContentBody, ContentChannel, OutgoingContent, RetiredAlias, TrustedAttestationKey, VaultToken,
+    encode_content, verify_alias_change, AliasTokenCheck, AliasVault, AliasVaultKey, ChatCryptoError,
+    ContentBinding, ContentBody, ContentChannel, OutgoingContent, RetiredAlias, TrustedAttestationKey,
+    VaultToken,
 };
 use vodozemac::{base64_decode, base64_encode, Ed25519SecretKey};
 
@@ -111,7 +112,10 @@ fn token_vectors(spki: &str) -> Tokens {
         blind_signature.clone(),
     )
     .unwrap();
-    assert!(alias_token_verify(spki.into(), prepared.nonce.clone(), token_signature.clone()).unwrap());
+    assert_eq!(
+        alias_token_verify(spki.into(), prepared.nonce.clone(), token_signature.clone()).unwrap(),
+        AliasTokenCheck::Valid
+    );
 
     let second = alias_vectors::prepare(spki, KEY_ID, OTHER_IDEM, OTHER_MESSAGE, OTHER_RNG_SEED).unwrap();
     let second_signature = sign(&second.blinded_msg);
@@ -354,17 +358,19 @@ fn vault_vectors(key: &AliasVaultKey, tokens: &Tokens) -> Value {
     // 20 retired aliases and 10 tokens being prepared.
     let worst = {
         let mut big = vault.clone();
+        big.seq = 1 << 53;
+        big.alias = "abcdefghijklmnopqrst".into();
         big.retired = (0..20)
             .map(|i| RetiredAlias { alias: format!("abcdefghijklmnop{i:04}"), retired_at: (1 << 53) - i })
             .collect();
         big.tokens = (0..10u8)
             .map(|i| VaultToken::Preparing {
-                key_id: KEY_ID.into(),
+                key_id: "abcdefghijklmnop".into(),
                 nonce: base64_std(&[i; 64]),
                 blinded_msg: base64_std(&[0x11; 256]),
                 secret: base64_std(&[0x22; 256]),
                 idem: IDEM.into(),
-                burn_signature: Some(BURN_SIGNATURE.into()),
+                burn_signature: Some("1".repeat(90)),
             })
             .collect();
         big

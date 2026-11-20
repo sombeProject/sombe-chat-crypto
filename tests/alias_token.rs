@@ -87,8 +87,8 @@ fn the_rfc_9474_vector_replays_byte_for_byte() {
     let signer = Secret::from_der(&pkcs1_private(&v)).unwrap();
     let hex = |name: &str| unhex(v[name].as_str().unwrap());
     let key = Key::from_der(&spki(&v)).unwrap();
-    // `blind` draws the 32 byte prefix, the 48 byte salt, then the factor r as 256 little
-    // endian bytes (the modulus has 4 096 bits, so 512 bytes and no mask).
+    // `blind` draws the 32 byte prefix, the 48 byte salt, then the factor r as 512 little
+    // endian bytes (the modulus has 4 096 bits, so no mask).
     let mut script = hex("msg_prefix");
     script.extend(hex("salt"));
     script.extend(hex("r").into_iter().rev());
@@ -123,7 +123,10 @@ fn a_token_goes_from_prepare_to_a_verified_signature() {
     )
     .unwrap();
     assert_eq!(base64_std::decode(&token_signature).len(), 256);
-    assert!(alias_token_verify(spki.clone(), prepared.nonce.clone(), token_signature.clone()).unwrap());
+    assert_eq!(
+        alias_token_verify(spki.clone(), prepared.nonce.clone(), token_signature.clone()).unwrap(),
+        AliasTokenCheck::Valid
+    );
 
     // The signature is the one of the message `msg_prefix || msg`, as RFC 9474 prepares it:
     // the library accepts it from the two halves of the nonce.
@@ -132,12 +135,26 @@ fn a_token_goes_from_prepare_to_a_verified_signature() {
     key.verify(&Signature(base64_std::decode(&token_signature)), Some(randomizer.into()), &nonce[32..])
         .unwrap();
 
-    // Another message, another key, a changed signature: false, never an error.
+    // Another message, a changed signature, another key: `BadSignature`, never an error.
     let other = alias_token_prepare(spki.clone(), "k1".into(), IDEM.into()).unwrap();
-    assert!(!alias_token_verify(spki.clone(), other.nonce.clone(), token_signature.clone()).unwrap());
+    assert_eq!(
+        alias_token_verify(spki.clone(), other.nonce.clone(), token_signature.clone()).unwrap(),
+        AliasTokenCheck::BadSignature
+    );
     let mut changed = base64_std::decode(&token_signature);
     changed[100] ^= 1;
-    assert!(!alias_token_verify(spki, prepared.nonce, b64(&changed)).unwrap());
+    assert_eq!(
+        alias_token_verify(spki, prepared.nonce.clone(), b64(&changed)).unwrap(),
+        AliasTokenCheck::BadSignature
+    );
+    // Another key of 2 048 bits: the signature does not hold, and that is not an error.
+    let pair =
+        KeyPair::<Sha384, PSS, Randomized>::generate(&mut blind_rsa_signatures::DefaultRng, 2048).unwrap();
+    let other_key = b64(&pair.pk.to_der().unwrap());
+    assert_eq!(
+        alias_token_verify(other_key, prepared.nonce, token_signature).unwrap(),
+        AliasTokenCheck::BadSignature
+    );
 }
 
 fn spki_bytes() -> Vec<u8> {
@@ -145,12 +162,29 @@ fn spki_bytes() -> Vec<u8> {
 }
 
 #[test]
-fn two_tokens_never_share_a_message_or_a_blinding() {
-    let a = alias_token_prepare(spki_b64(), "k1".into(), IDEM.into()).unwrap();
-    let b = alias_token_prepare(spki_b64(), "k1".into(), IDEM.into()).unwrap();
-    assert_ne!(a.nonce, b.nonce);
-    assert_ne!(a.blinded_msg, b.blinded_msg);
-    assert_ne!(a.secret, b.secret);
+fn tokens_never_share_a_message_or_a_blinding() {
+    // A blinding factor that repeated or stayed constant would still give signatures that
+    // verify, and would make the buyer recognisable: no vector can show it, only variation.
+    let tokens: Vec<PreparedAliasToken> =
+        (0..8).map(|_| alias_token_prepare(spki_b64(), "k1".into(), IDEM.into()).unwrap()).collect();
+    for field in [
+        |t: &PreparedAliasToken| t.nonce.clone(),
+        |t: &PreparedAliasToken| t.blinded_msg.clone(),
+        |t: &PreparedAliasToken| t.secret.clone(),
+    ] {
+        let mut seen: Vec<String> = tokens.iter().map(field).collect();
+        seen.sort();
+        seen.dedup();
+        assert_eq!(seen.len(), tokens.len());
+    }
+    // The randomizer (first 32 bytes of the nonce) and the message (last 32) both change.
+    for half in [0..32, 32..64] {
+        let mut halves: Vec<Vec<u8>> =
+            tokens.iter().map(|t| base64_std::decode(&t.nonce)[half.clone()].to_vec()).collect();
+        halves.sort();
+        halves.dedup();
+        assert_eq!(halves.len(), tokens.len());
+    }
 }
 
 #[test]

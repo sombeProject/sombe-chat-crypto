@@ -531,7 +531,7 @@ integers without a leading zero, no escape), compared byte for byte when a vault
   `secret` and `signature` 256 bytes, all in base64 with padding; `key_id` is
   `^[a-z0-9]{1,16}$`.
 - The worst case allowed (20 retired aliases and 10 tokens being prepared) is a JSON of
-  11 376 bytes, within the 16 341 bytes that fit.
+  11 564 bytes, within the 16 341 bytes that fit.
 
 **Opening.** A format byte other than `0x01` is `UnsupportedVault`, read before anything
 else (also on a block of another size); so is a schema `v` other than 1, read after the
@@ -563,8 +563,10 @@ Rust, `serde` off). The module has no function that signs a token.
 - The wallet API signs `blinded_msg` without seeing it. `alias_token_finalize(
   public_key_spki, nonce, blinded_msg, secret, blind_signature)` unblinds and returns the
   `token_signature` (256 bytes, base64) only if it verifies under the key; otherwise
-  `InvalidToken`. `alias_token_verify(public_key_spki, nonce, token_signature)` is true if
-  it verifies; a key or a length that is not valid is `InvalidToken`. ChatPay verifies
+  `InvalidToken`. `alias_token_verify(public_key_spki, nonce, token_signature)` is
+  `AliasTokenCheck.Valid` if it verifies and `BadSignature` if not (an enum, so the app must
+  handle both); a key or a length that is not valid is `InvalidToken`, an error of the app's
+  key and never a reason to throw a token away. ChatPay verifies
   RSASSA-PSS, SHA-384, MGF1 SHA-384, salt of 48 bytes, over the 64 byte nonce.
 - The burn that pays a token carries the memo `sombe-alias-token:` and the SHA-256 of the
   **bytes** of `blinded_msg`, in base64url without padding (43 characters):
