@@ -29,6 +29,15 @@ pub(crate) fn text(kid: &str, alias: &str, account_id: &str, account: &str, expi
     )
 }
 
+/// What `verify_alias_change` returns (since 0.11.0): the attested alias and the `expires`
+/// the server signed, in seconds since 1970. The order of two changes is the order of their
+/// `expires`, never the date of deposit, which the server can change.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct VerifiedAliasChange {
+    pub alias: String,
+    pub expires: i64,
+}
+
 pub(crate) fn verify(
     text: &str,
     signature_text: &str,
@@ -38,6 +47,21 @@ pub(crate) fn verify(
     deposited_at: &str,
 ) -> Result<String, ChatCryptoError> {
     check(text, signature_text, trusted_keys, sender_account_id, sender_account_public_key, deposited_at)
+        .map(|(alias, _)| alias)
+        .ok_or(ChatCryptoError::InvalidAttestation)
+}
+
+/// The same checks as `verify`, and the signed `expires` as well.
+pub(crate) fn verify_change(
+    text: &str,
+    signature_text: &str,
+    trusted_keys: &[TrustedAttestationKey],
+    sender_account_id: &str,
+    sender_account_public_key: &str,
+    deposited_at: &str,
+) -> Result<VerifiedAliasChange, ChatCryptoError> {
+    check(text, signature_text, trusted_keys, sender_account_id, sender_account_public_key, deposited_at)
+        .map(|(alias, expires)| VerifiedAliasChange { alias, expires })
         .ok_or(ChatCryptoError::InvalidAttestation)
 }
 
@@ -48,7 +72,7 @@ fn check(
     sender_account_id: &str,
     sender_account_public_key: &str,
     deposited_at: &str,
-) -> Option<String> {
+) -> Option<(String, i64)> {
     if text_in.len() > MAX_TEXT_BYTES {
         return None;
     }
@@ -90,7 +114,7 @@ fn check(
     if deposited > expires.checked_mul(1000)? {
         return None;
     }
-    Some(alias.to_owned())
+    Some((alias.to_owned(), expires))
 }
 
 /// The key named `kid`, when the list is well formed: every kid valid and listed once,

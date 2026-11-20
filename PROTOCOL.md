@@ -53,6 +53,14 @@ while phones move over, and the app refuses a v3 for a contact once it saw a v4 
 module reads a statement v4 as a v3 and refuses it (`InvalidSignature`), and reads the
 `identity_statement` kind as `UnsupportedContent`. `vectors/v6.json` is frozen in turn.
 
+0.11.0 adds the alias vault and the alias token (*Alias vault and alias token*) and a new
+content kind, `alias_change`. The vault is one block of 16 384 bytes that the phone seals
+and the server keeps without reading; the token is an RSA blind signature that lets a person
+pay for an alias without the server linking the payment to the account. Both are new
+functions; nothing that 0.10.0 writes or reads changes. A 0.10.0 module reads the
+`alias_change` kind as `UnsupportedContent` (authentic, not shown). `vectors/v7.json` is
+frozen in turn.
+
 `vectors/v1.json` holds test vectors written by 0.4.0 (its identity statement and safety
 number are no longer read since 0.7.0; its keys, sessions and version 1 contents still
 are), `vectors/v2.json` those of content version 2 (since 0.5.0; wallet card and payment
@@ -479,6 +487,99 @@ signed by the pinned account key and the Olm session do; the seal only hides the
 from the server. A server that writes a statement under its own account key and someone
 else's account id gets a seal that opens, and fails the account key check.
 
+## Alias vault and alias token (since 0.11.0)
+
+Everything the APIs take here is **base64 standard with padding**, written and read by a
+strict codec of this module: a text is accepted only if writing the bytes it gives yields
+that very text. (vodozemac's codec writes without padding.) Only the sealed vault key,
+which never goes to a server, keeps the no padding form of the account key.
+
+**Vault key.** `derive_alias_vault_key(wallet_secret, account_id)`: HKDF-SHA256 over the
+32 byte wallet seed, empty salt, info `sombe:alias_vault:1`, 32 bytes. `account_id` is a
+lower case UUID. The seed is used once and erased; the `AliasVaultKey` object never returns
+its key. `seal_key(sealing_key)` returns `0x01`, a fresh 24 byte nonce and
+XChaCha20-Poly1305 of the 32 byte key, in base64 without padding, with associated data
+`sombe:alias_vault_key_seal:v1`, `0x01` and the account id; `AliasVaultKey.unseal(sealed,
+sealing_key, account_id)` opens it, or fails with `InvalidSealedKey`.
+
+**Vault.** One block of exactly 16 384 bytes, sent in base64 (21 848 characters):
+`0x01` (the format of the encryption), a 24 byte nonce drawn at random at every write, and
+XChaCha20-Poly1305 of a clear text of 16 343 bytes (so a tag of 16 bytes), with associated
+data the UTF-8 bytes of `sombe alias vault v1`, then `0x01`, then the 36 ASCII characters
+of the account id: a vault opens only for its account and its format. The clear text is a
+2 byte length `L` (big endian), a JSON of `L` bytes, and zeros up to 16 343 bytes. The JSON
+is **exactly** the text this module writes (no space, fixed order, no extra field, decimal
+integers without a leading zero, no escape), compared byte for byte when a vault is opened.
+
+```
+{"v":1,"seq":0,"alias":"…","retired":[{"alias":"…","retired_at":1795000000}],"tokens":[…]}
+```
+
+- `seq`: an integer from 0 to 2^53 (inclusive), which goes up at each change of content.
+- `alias`: `^[a-z][a-z0-9_]{2,19}$`. `retired`: at most 20 entries, sorted by `retired_at`
+  from the latest, then by alias; `retired_at` is in seconds, 1 to 2^53; no alias twice, and
+  the current alias is never among them. `seal_vault` sorts them and cuts them to 20 (the
+  oldest leave).
+- `tokens`: at most 10, sorted by the **decoded bytes** of `nonce` (not by its text, which
+  sorts differently), no `nonce` twice. More than 10, a `nonce` twice, an alias twice or the
+  current alias among the retired is `InvalidVault` when sealing: a paid token is never
+  lost without an error.
+- A token being prepared: `{"state":"preparing","key_id","nonce","blinded_msg","secret","idem"}`
+  and, once known, `"burn_signature"` (base58, 64 to 90 characters). `idem` is the burn's
+  `client_idempotency_key`, a lower case UUID v4. A token ready:
+  `{"state":"ready","key_id","nonce","signature"}`. `nonce` is 64 bytes, `blinded_msg`,
+  `secret` and `signature` 256 bytes, all in base64 with padding; `key_id` is
+  `^[a-z0-9]{1,16}$`.
+- The worst case allowed (20 retired aliases and 10 tokens being prepared) is a JSON of
+  11 564 bytes, within the 16 341 bytes that fit.
+
+**Opening.** A format byte other than `0x01` is `UnsupportedVault`, read before anything
+else (also on a block of another size); so is a schema `v` other than 1, read after the
+decryption. Everything else that fails (a wrong key, another account, a changed or cut
+block, a padding that is not zeros, a JSON that is not exactly the one written) is
+`InvalidVault`, with no detail. An app never rewrites a vault it could not open: an older
+app must not erase a newer vault.
+
+The server can give back an older vault or none, and cannot read any. So the phone keeps a
+sealed copy of the whole content, which is authoritative, with the last `seq` it saw; a
+server vault with a lower `seq` is merged and rewritten, never taken as it is.
+
+**Alias token.** RFC 9474, `RSABSSA-SHA384-PSS-Randomized`, with a 2 048 bit RSA key
+(exponent 65 537), through the `blind-rsa-signatures` crate (pinned with `=`, MIT, pure
+Rust, `serde` off). The module has no function that signs a token.
+
+- The public key is given as DER `SubjectPublicKeyInfo` with `rsaEncryption`, in base64
+  with padding. It is read with `from_der`, never `from_spki` (which takes only the
+  RSASSA-PSS template), written back and compared, and checked to be exactly the 294 bytes
+  of a 2 048 bit key with exponent 65 537 (the library accepts 2 048 to 4 096 bits and the
+  exponent 3). The appendix A key of the RFC has 4 096 bits, so the RFC vector is replayed
+  through the library (`tests/alias_token.rs`), byte for byte, and not through these
+  functions.
+- `alias_token_prepare(public_key_spki, key_id, idem)` draws a 32 byte message `msg` and
+  blinds it with the system's randomness. The **nonce** is the prepared message of the RFC,
+  `msg_prefix || msg`: the 32 bytes of the randomizer, then `msg`; 64 bytes. It names the
+  token. The result holds `key_id`, `nonce`, `blinded_msg` (what the wallet API signs),
+  `secret` (the unblinding factor) and `idem`. Keep it in the vault before paying.
+- The wallet API signs `blinded_msg` without seeing it. `alias_token_finalize(
+  public_key_spki, nonce, blinded_msg, secret, blind_signature)` unblinds and returns the
+  `token_signature` (256 bytes, base64) only if it verifies under the key; otherwise
+  `InvalidToken`. `alias_token_verify(public_key_spki, nonce, token_signature)` is
+  `AliasTokenCheck.Valid` if it verifies and `BadSignature` if not (an enum, so the app must
+  handle both); a key or a length that is not valid is `InvalidToken`, an error of the app's
+  key and never a reason to throw a token away. ChatPay verifies
+  RSASSA-PSS, SHA-384, MGF1 SHA-384, salt of 48 bytes, over the 64 byte nonce.
+- The burn that pays a token carries the memo `sombe-alias-token:` and the SHA-256 of the
+  **bytes** of `blinded_msg`, in base64url without padding (43 characters):
+  `alias_token_memo(blinded_msg)`.
+- The app picks the key by `key_id` in a list of trusted keys built into the APK, each with
+  the window in which it signs; the module knows no key.
+
+`vectors/v8.json` holds the vault key, the key sealed, the block that opens to its vault,
+fourteen blocks refused with their error, the worst case, two nonces whose text and byte
+order differ, a token prepared, signed, finalized and verified (with refusals), its memo,
+and the `alias_change` content. The signing key of the test is in
+`vectors/alias-token-test-key.json`. The ChatPay and wallet APIs replay it.
+
 ## Envelope
 
 What the server stores and relays for each message:
@@ -526,6 +627,7 @@ with the same fields, plus three (since 0.8.0), one (since 0.9.0) and one (since
 | `contact_accept` | `request_id` (the envelope id of the request it accepts), `attestation`, `attestation_signature` | mailbox |
 | `contact_cancel` | `request_id` (the envelope id of the request it withdraws) | mailbox |
 | `access_key` (since 0.9.0) | `access_key` (base64 without padding of 16 bytes), `generation` (JSON integer, 1 to 2147483647) | mailbox |
+| `alias_change` (since 0.11.0) | `attestation` (1 to 512 bytes), `attestation_signature` (base58 of 64 bytes): the form of `contact_request` | mailbox, version 4 only |
 | `identity_statement` (since 0.10.0) | `account_public_key`, `curve25519_key`, `ed25519_key`, `sealing_key`, `created_at`, `identity_signature`, `account_signature`: the columns of the sender's statement v4 | mailbox |
 
 Since 0.9.0 `contact_accept` may also carry, after `attestation_signature`,
@@ -535,6 +637,17 @@ generation, with the same forms as the `access_key` kind. Both come together or 
 spelling, or a generation that is not a JSON integer from 1 to 2147483647 is
 `InvalidContent`. The `access_key` kind is read only in version 4: in version 2 it is
 `UnsupportedContent`.
+
+The `alias_change` kind (since 0.11.0) has the form and the form checks of `contact_request`,
+in version 4 only; any older version is `UnsupportedContent`, and the websocket is
+`UnboundContent`. A contact sends it to each of their contacts when their alias changes.
+`verify_alias_change(text, signature, trusted_keys, sender_account_id,
+sender_account_public_key, deposited_at)` makes the checks of `verify_alias_attestation` and
+returns `VerifiedAliasChange { alias, expires }`. The order of two changes is the order of
+their `expires`, which the server signed inside the encrypted envelope, and never the date
+of deposit, which the server can change: a contact applies a change only if its `expires` is
+later than the last one applied for that sender, and an attestation whose alias is already
+the contact's alias changes nothing.
 
 The `identity_statement` kind (since 0.10.0) is read only in version 4 too. Its statement
 must be a v4 whose own signatures hold, and its `ed25519_key` must be the content's
@@ -964,6 +1077,14 @@ is verified is stored only on the phone that verified it, never sent to the serv
 - The wallet seed passes through the app's memory (the JVM) when the account key is
   derived or rotated; it is already there for Solana. The module erases its own copies,
   not the app's, nor the buffer UniFFI copies the call's bytes into on the way in.
+- The unblinding factor of an alias token passes through the app's memory (the JVM) and is
+  kept in the vault; the module erases its own copies, not the app's. The library draws the
+  blinding factor with `random_mod_vartime`, which is not constant time: it tells nothing to
+  someone who is not already on the phone. `blind-rsa-signatures` has no published paid
+  audit; its version is pinned with `=`, and the RFC 9474 vector is replayed in CI.
+- The server sees when a vault is written and its size (always the same), and that a token
+  is spent, never by whom. A phone that keeps a vault older than the server's is merged,
+  never overwritten by the server.
 - No post quantum protection (Olm has none, nor does the X25519 suite of the sealed
   sender).
 - The crate `hpke` (sealed sender) has no published paid audit. Its version is pinned with

@@ -1,3 +1,6 @@
+#[allow(dead_code)]
+pub mod rsa;
+
 use sombe_chat_crypto::ChatCrypto;
 use vodozemac::Ed25519SecretKey;
 

@@ -40,6 +40,9 @@
 //! Since 0.10.0 version 4 also carries `identity_statement`: the sender's own statement v4,
 //! which gives a contact the sealing key of the sender's identity. Its ed25519 key must be
 //! the content's `sender_ed25519`.
+//!
+//! Since 0.11.0 version 4 also carries `alias_change`: the same form as `contact_request`,
+//! sent to each contact when the sender's alias changes.
 
 use serde_json::{Map, Value};
 use vodozemac::{base64_decode, base64_encode};
@@ -239,6 +242,10 @@ pub enum ContentBody {
     /// are checked, its ed25519 key is the sender's; the app still checks it against the
     /// account key and the identity pinned for that contact.
     IdentityStatement { statement: StatementFields },
+    /// Tells a contact that the sender's alias changed (since 0.11.0, version 4 only): the
+    /// new alias attestation, same form as in `contact_request`. Mailbox only. The module
+    /// checks only its form; `verify_alias_change` gives the alias and its signed `expires`.
+    AliasChange { attestation: String, attestation_signature: String },
 }
 
 /// The fields of `identity_statement`, in the order PROTOCOL.md gives.
@@ -392,7 +399,8 @@ pub(crate) fn encode(content: OutgoingContent) -> Result<String, ChatCryptoError
             map.insert("wallet_address".into(), Value::from(rotation.wallet_address));
             map.insert("wallet_signature".into(), Value::from(rotation.wallet_signature));
         }
-        ContentBody::ContactRequest { attestation, attestation_signature } => {
+        ContentBody::ContactRequest { attestation, attestation_signature }
+        | ContentBody::AliasChange { attestation, attestation_signature } => {
             put_attestation(&mut map, attestation, attestation_signature)?;
         }
         ContentBody::ContactAccept { request_id, attestation, attestation_signature, access_key } => {
@@ -533,6 +541,7 @@ fn decode_v2_v4(mut map: Map<String, Value>, version: u8) -> Result<Decoded, Cha
         "contact_cancel" if version >= 3 => &["request_id"],
         "access_key" if version >= 4 => &["access_key", "generation"],
         "identity_statement" if version >= 4 => &STATEMENT_FIELDS,
+        "alias_change" if version == 4 => &["attestation", "attestation_signature"],
         _ => return Err(unsupported("unknown content kind")),
     };
     // Exactly the fields of the kind: a later addition is a new version.
@@ -680,6 +689,10 @@ fn decode_v2_v4(mut map: Map<String, Value>, version: u8) -> Result<Decoded, Cha
             }
         }
         "contact_request" => ContentBody::ContactRequest {
+            attestation: attestation(&required(&map, "attestation")?)?,
+            attestation_signature: canonical_owned(&required(&map, "attestation_signature")?)?,
+        },
+        "alias_change" => ContentBody::AliasChange {
             attestation: attestation(&required(&map, "attestation")?)?,
             attestation_signature: canonical_owned(&required(&map, "attestation_signature")?)?,
         },
@@ -854,6 +867,7 @@ fn kind_name(body: &ContentBody) -> &'static str {
         ContentBody::ContactCancel { .. } => "contact_cancel",
         ContentBody::AccessKey { .. } => "access_key",
         ContentBody::IdentityStatement { .. } => "identity_statement",
+        ContentBody::AliasChange { .. } => "alias_change",
     }
 }
 

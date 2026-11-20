@@ -19,16 +19,19 @@ use zeroize::Zeroizing;
 mod access;
 mod account;
 mod attestation;
+mod b64;
 mod content;
 mod safety;
 mod sealed;
 mod statement;
+mod token;
+mod vault;
 
 pub use account::{
     AccountRotation, AccountRotationContent, ChatAccountKey, DerivedAccount, ProvenRotation, RotationProof,
     SignedStatement, WalletCard,
 };
-pub use attestation::TrustedAttestationKey;
+pub use attestation::{TrustedAttestationKey, VerifiedAliasChange};
 pub use content::{
     AccessKeyGrant, Content, ContentBinding, ContentBody, ContentChannel, OutgoingContent, ReceiptStatus,
     TypingState,
@@ -36,6 +39,8 @@ pub use content::{
 #[cfg(feature = "vectors")]
 pub use sealed::vectors;
 pub use sealed::{ChatSealingKey, OpenedSealed, SealedRecipient, SealedSender, SEALED_PROTOCOL};
+pub use token::{AliasTokenCheck, PreparedAliasToken};
+pub use vault::{AliasVault, AliasVaultKey, RetiredAlias, VaultToken};
 
 uniffi::setup_scaffolding!();
 
@@ -112,6 +117,19 @@ pub enum ChatCryptoError {
     /// is not exactly the format. Never more detail.
     #[error("the sealed envelope does not open")]
     InvalidSealed,
+    /// An alias vault that does not open (since 0.11.0): another key or account, a changed or
+    /// cut block, a JSON that is not exactly the one the module writes, or a vault that
+    /// cannot be written. Never more detail.
+    #[error("the alias vault does not open")]
+    InvalidVault,
+    /// An alias vault of a format or a schema this module does not know (since 0.11.0). Do
+    /// not rewrite it: an older app must not erase a newer vault.
+    #[error("the alias vault is of a newer format")]
+    UnsupportedVault,
+    /// An alias token that does not hold (since 0.11.0): the key, a length, the signature.
+    /// Never more detail.
+    #[error("invalid alias token")]
+    InvalidToken,
 }
 
 type Result<T> = std::result::Result<T, ChatCryptoError>;
@@ -505,6 +523,80 @@ pub fn verify_alias_attestation(
     )
 }
 
+/// Checks the attestation of an `alias_change` (since 0.11.0) exactly as
+/// `verify_alias_attestation` does, and returns the alias with the `expires` the server
+/// signed. A contact applies a change only if its `expires` is later than the last one
+/// applied for that sender.
+#[uniffi::export]
+pub fn verify_alias_change(
+    text: String,
+    signature: String,
+    trusted_keys: Vec<TrustedAttestationKey>,
+    sender_account_id: String,
+    sender_account_public_key: String,
+    deposited_at: String,
+) -> Result<VerifiedAliasChange> {
+    attestation::verify_change(
+        &text,
+        &signature,
+        &trusted_keys,
+        &sender_account_id,
+        &sender_account_public_key,
+        &deposited_at,
+    )
+}
+
+/// The key of the alias vault of `account_id` (a lower case UUID), from the 32 byte wallet
+/// seed (since 0.11.0). The seed is erased from the module's memory before returning.
+#[uniffi::export]
+pub fn derive_alias_vault_key(wallet_secret: Vec<u8>, account_id: String) -> Result<Arc<AliasVaultKey>> {
+    vault::derive(wallet_secret, account_id)
+}
+
+/// Blinds a new alias token for the key `public_key_spki` (DER SPKI, base64 with padding),
+/// named `key_id` in the app (since 0.11.0). `idem` is the burn's idempotency key, a lower
+/// case UUID v4. Keep the result in the vault before paying.
+#[uniffi::export]
+pub fn alias_token_prepare(
+    public_key_spki: String,
+    key_id: String,
+    idem: String,
+) -> Result<PreparedAliasToken> {
+    token::prepare(&public_key_spki, &key_id, &idem)
+}
+
+/// Unblinds the wallet API's `blind_signature` and returns the `token_signature` ChatPay
+/// takes, only if it verifies under the key (since 0.11.0).
+#[uniffi::export]
+pub fn alias_token_finalize(
+    public_key_spki: String,
+    nonce: String,
+    blinded_msg: String,
+    secret: String,
+    blind_signature: String,
+) -> Result<String> {
+    token::finalize(&public_key_spki, &nonce, &blinded_msg, &secret, &blind_signature)
+}
+
+/// `Valid` if `token_signature` signs the prepared message `nonce` under the key, else
+/// `BadSignature` (since 0.11.0). A key or a length that is not valid is `InvalidToken`, which
+/// is an error of the app's key, never a token to throw away.
+#[uniffi::export]
+pub fn alias_token_verify(
+    public_key_spki: String,
+    nonce: String,
+    token_signature: String,
+) -> Result<AliasTokenCheck> {
+    token::verify(&public_key_spki, &nonce, &token_signature)
+}
+
+/// The memo of the burn that pays a token: `sombe-alias-token:` and the SHA-256 of the bytes
+/// of `blinded_msg` in base64url without padding (since 0.11.0).
+#[uniffi::export]
+pub fn alias_token_memo(blinded_msg: String) -> Result<String> {
+    token::memo(&blinded_msg)
+}
+
 /// The access key of a profile key (since 0.9.0): HKDF-SHA256 of the 32 byte profile key,
 /// empty salt, info `sombe:access_key:1`, 16 bytes in base64 without padding. Another
 /// length of profile key is `InvalidKey`. The profile key is erased from the module's memory
@@ -652,4 +744,43 @@ fn curve_key(base64: &str) -> Result<Curve25519PublicKey> {
 fn utf8(bytes: Vec<u8>) -> Result<String> {
     String::from_utf8(bytes)
         .map_err(|_| ChatCryptoError::Decryption { reason: "plaintext is not UTF-8".to_owned() })
+}
+
+/// Fixed keys and fixed randomness for the alias vault and the alias token, for
+/// tools/make_vectors.rs and its tests only.
+#[cfg(feature = "vectors")]
+#[doc(hidden)]
+pub mod alias_vectors {
+    use super::*;
+
+    pub use crate::token::fixed::StreamRng;
+
+    pub fn seal_vault(key: &AliasVaultKey, vault: AliasVault, nonce: [u8; 24]) -> Result<String> {
+        vault::seal_with_nonce(key, vault, nonce)
+    }
+
+    pub fn seal_key(key: &AliasVaultKey, sealing_key: [u8; 32], nonce: [u8; 24]) -> Result<String> {
+        vault::seal_key_with_nonce(key, sealing_key, nonce)
+    }
+
+    /// Seals any clear text of 16 343 bytes under a chosen format byte, to write the blocks a
+    /// reader must refuse.
+    pub fn seal_clear(key: &AliasVaultKey, clear: &[u8], nonce: [u8; 24], format: u8) -> String {
+        vault::seal_clear(key, clear, nonce, format)
+    }
+
+    /// The padded clear text of a vault: length, JSON, zeros.
+    pub fn clear_text(vault: AliasVault) -> Result<Vec<u8>> {
+        vault::clear_text(vault)
+    }
+
+    pub fn prepare(
+        public_key_spki: &str,
+        key_id: &str,
+        idem: &str,
+        message: [u8; 32],
+        seed: &[u8],
+    ) -> Result<PreparedAliasToken> {
+        token::fixed::prepare(public_key_spki, key_id, idem, message, seed)
+    }
 }
