@@ -555,7 +555,7 @@ pub(crate) fn is_uuid_v4(id: &str) -> bool {
 mod tests {
     use super::*;
 
-    const WORST_JSON_BYTES: usize = 11_564;
+    const WORST_JSON_BYTES: usize = 11_774;
     const ACCOUNT: &str = "a1a1a1a1-0000-4000-8000-0000000000a1";
     const IDEM: &str = "7c4f1e3b-0d8a-4f5b-9e9c-2a3b4c5d6e78";
 
@@ -738,13 +738,17 @@ mod tests {
 
     #[test]
     fn the_worst_case_fits() {
-        // Every field at its largest: a seq of 2^53, an alias and a key id of their longest
-        // size, 20 retired aliases, 10 tokens being prepared with a burn signature of 90.
+        // Every field at its largest: a seq of 2^53, an alias of 30 bytes and a key id of their
+        // longest size, 20 retired aliases of 30 bytes, 10 tokens being prepared with a burn
+        // signature of 90.
         let mut v = vault();
         v.seq = MAX_INTEGER;
-        v.alias = "abcdefghijklmnopqrst".into();
+        v.alias = "abcdefghijklmnopqrst.123456789".into();
         v.retired = (0..20)
-            .map(|i| RetiredAlias { alias: format!("abcdefghijklmnop{i:04}"), retired_at: MAX_INTEGER - i })
+            .map(|i| RetiredAlias {
+                alias: format!("abcdefghijklmnopqrst.1{i:08}"),
+                retired_at: MAX_INTEGER - i,
+            })
             .collect();
         v.tokens = (0..10u8)
             .map(|i| VaultToken::Preparing {
@@ -760,6 +764,16 @@ mod tests {
         assert_eq!(json.len(), WORST_JSON_BYTES);
         assert!(json.len() <= MAX_JSON_BYTES);
         assert_eq!(key().open_vault(key().seal_vault(v.clone()).unwrap()).unwrap(), v);
+    }
+
+    #[test]
+    fn an_alias_given_its_digits_keeps_the_old_one_among_the_retired() {
+        let mut v = vault();
+        v.alias = "blaise.46".into();
+        v.retired.insert(0, RetiredAlias { alias: "blaise".into(), retired_at: 1_796_000_000 });
+        assert_eq!(key().open_vault(key().seal_vault(v.clone()).unwrap()).unwrap(), v);
+        v.alias = "blaise.046".into();
+        assert_eq!(key().seal_vault(v), Err(ChatCryptoError::InvalidVault));
     }
 
     #[test]

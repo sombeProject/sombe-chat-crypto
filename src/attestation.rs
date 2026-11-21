@@ -139,12 +139,28 @@ fn is_kid(kid: &str) -> bool {
         && kid.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
 }
 
-/// `^[a-z][a-z0-9_]{2,19}$`, checked on bytes.
+/// Two forms, checked on bytes (since 0.13.0): a name `^[a-z][a-z0-9_]{2,19}$` (the form before
+/// 0.13.0, still read), or a name, a dot and digits `\.(0[1-9]|[1-9][0-9]|[1-9][0-9]{2,8})`.
 pub(crate) fn is_alias(alias: &str) -> bool {
-    let bytes = alias.as_bytes();
+    match alias.split_once('.') {
+        None => is_alias_name(alias),
+        Some((name, digits)) => is_alias_name(name) && is_alias_digits(digits),
+    }
+}
+
+fn is_alias_name(name: &str) -> bool {
+    let bytes = name.as_bytes();
     (3..=20).contains(&bytes.len())
         && bytes[0].is_ascii_lowercase()
         && bytes[1..].iter().all(|&b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+}
+
+/// `01` to `99`, or 3 to 9 digits without a leading zero.
+fn is_alias_digits(digits: &str) -> bool {
+    let bytes = digits.as_bytes();
+    (2..=9).contains(&bytes.len())
+        && bytes.iter().all(u8::is_ascii_digit)
+        && (if bytes.len() == 2 { bytes != b"00" } else { bytes[0] != b'0' })
 }
 
 /// A lower case UUID, 8-4-4-4-12.
@@ -197,10 +213,47 @@ mod tests {
 
     #[test]
     fn alias_rule() {
-        for good in ["abc", "a_1", "abcdefghijklmnopqrst"] {
+        for good in [
+            "abc",
+            "a_1",
+            "abcdefghijklmnopqrst",
+            "blaise46",
+            "blaise.46",
+            "blaise.01",
+            "blaise.99",
+            "blaise.100",
+            "ab_c.123456789",
+            "abcdefghijklmnopqrst.123456789",
+        ] {
             assert!(is_alias(good), "{good}");
         }
-        for bad in ["ab", "1ab", "_ab", "Abc", "abcdefghijklmnopqrstu", "ab-c", "abé", "ab c", "abc\n"] {
+        for bad in [
+            "ab",
+            "1ab",
+            "_ab",
+            "Abc",
+            "abcdefghijklmnopqrstu",
+            "ab-c",
+            "abé",
+            "ab c",
+            "abc\n",
+            "blaise.00",
+            "blaise.046",
+            "blaise.4",
+            "blaise.1234567890",
+            "blaise..46",
+            "blaise.4a",
+            "blaise.46.",
+            "blaise.46.1",
+            ".46",
+            "blaise.",
+            "ab.46",
+            "Blaise.46",
+            "blaise.46\n",
+            "blaise.+46",
+            "blaise.٤٦",
+            "abcdefghijklmnopqrstu.12",
+        ] {
             assert!(!is_alias(bad), "{bad}");
         }
     }

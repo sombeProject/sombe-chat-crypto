@@ -161,6 +161,15 @@ fun main() {
     } catch (e: ChatCryptoException.InvalidKey) {
         check(true, "an epoch of 15 bytes is refused")
     }
+    // Since 0.13.0: an alias with digits, the old alias among the retired ones.
+    val withDigits = AliasVault(4L, "blaise.46", listOf(RetiredAlias("blaise", 1_796_000_000L)), listOf())
+    check(vaultKey.openVault(vaultKey.sealVault(withDigits)) == withDigits, "an alias with digits seals and opens")
+    try {
+        vaultKey.sealVault(withDigits.copy(alias = "blaise.046"))
+        check(false, "digits with a leading zero must throw")
+    } catch (e: ChatCryptoException.InvalidVault) {
+        check(true, "digits with a leading zero are refused")
+    }
     val grant = AccessKeyGrant(accessKey, 1u)
     val accessKinds = listOf(
         ContentBody.AccessKey(grant),
