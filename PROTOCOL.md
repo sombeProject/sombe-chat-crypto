@@ -64,6 +64,16 @@ frozen in turn.
 0.12.0 adds the secret of the alias seal (*Alias seal*), one new method on `AliasVaultKey`.
 Nothing that 0.11.0 writes or reads changes; `vectors/v8.json` is frozen in turn.
 
+0.13.0 reads aliases with digits (*Alias rule*): a name, a dot and 2 to 9 digits, such as
+`blaise.46`. The alias rule of the attestation, of `alias_change` and of the vault reads both
+forms; the form without digits stays readable for good, because vaults, retired aliases and
+attestations of accounts that have not moved yet still carry it. Which form can still be taken
+is the ChatPay API's and the app's rule, not the module's. The vault format stays `v: 1`; its
+worst case grows from 11 564 to 11 774 bytes. A 0.12.0 module refuses an alias with digits in
+an attestation (`InvalidAttestation`), in an `alias_change` and in a vault (`InvalidVault`):
+every phone must run 0.13.0 before the first alias gets its digits. `vectors/v9.json` is
+frozen in turn; `vectors/v10.json` holds the new cases.
+
 `vectors/v1.json` holds test vectors written by 0.4.0 (its identity statement and safety
 number are no longer read since 0.7.0; its keys, sessions and version 1 contents still
 are), `vectors/v2.json` those of content version 2 (since 0.5.0; wallet card and payment
@@ -343,6 +353,19 @@ A sender verifies the signature against the recipient's verified identity before
 opening a session with the key. The server hands out each one time key once, and the
 fallback key only when no one time key is left.
 
+
+## Alias rule (since 0.13.0)
+
+An alias has one of two forms, checked byte by byte, never through a regular expression engine:
+
+- a **name**, `^[a-z][a-z0-9_]{2,19}$` (the only form before 0.13.0, still read);
+- a name, one dot, then **digits**: `^[a-z][a-z0-9_]{2,19}\.(0[1-9]|[1-9][0-9]|[1-9][0-9]{2,8})$`.
+  Two digits run from `01` to `99`; three to nine digits never start with `0`, so `blaise.046`
+  is never taken for `blaise.46`. 30 bytes at most.
+
+Nothing else is an alias: no upper case, no other separator, no digit outside ASCII, no second
+dot. Lower casing and trimming are the server's and the app's, before the module sees it.
+
 ## Alias attestation (since 0.8.0)
 
 A contact request (and its acceptance) carries a short proof, signed by the ChatPay server,
@@ -363,7 +386,7 @@ expires:<unix seconds>
 ```
 
 - `kid`: the server key that signed it, 1 to 16 characters among `a` to `z` and `0` to `9`.
-- `alias`: `^[a-z][a-z0-9_]{2,19}$`, checked byte by byte.
+- `alias`: the alias rule below, checked byte by byte.
 - `account_id`: the account's random id, a lower case UUID.
 - `account`: the account public key (base58 of 32 bytes), the one that signs the identity v3.
 - `expires`: seconds since 1970, decimal digits without sign or leading zero. The server
@@ -519,7 +542,7 @@ integers without a leading zero, no escape), compared byte for byte when a vault
 ```
 
 - `seq`: an integer from 0 to 2^53 (inclusive), which goes up at each change of content.
-- `alias`: `^[a-z][a-z0-9_]{2,19}$`. `retired`: at most 20 entries, sorted by `retired_at`
+- `alias`: the alias rule (*Alias rule*), as are the retired aliases. `retired`: at most 20 entries, sorted by `retired_at`
   from the latest, then by alias; `retired_at` is in seconds, 1 to 2^53; no alias twice, and
   the current alias is never among them. `seal_vault` sorts them and cuts them to 20 (the
   oldest leave).
@@ -533,8 +556,9 @@ integers without a leading zero, no escape), compared byte for byte when a vault
   `{"state":"ready","key_id","nonce","signature"}`. `nonce` is 64 bytes, `blinded_msg`,
   `secret` and `signature` 256 bytes, all in base64 with padding; `key_id` is
   `^[a-z0-9]{1,16}$`.
-- The worst case allowed (20 retired aliases and 10 tokens being prepared) is a JSON of
-  11 564 bytes, within the 16 341 bytes that fit.
+- The worst case allowed (an alias of 30 bytes, 20 retired aliases of 30 bytes and 10 tokens
+  being prepared) is a JSON of 11 774 bytes since 0.13.0 (11 564 before, with aliases of 20
+  bytes), within the 16 341 bytes that fit.
 
 **Opening.** A format byte other than `0x01` is `UnsupportedVault`, read before anything
 else (also on a block of another size); so is a schema `v` other than 1, read after the

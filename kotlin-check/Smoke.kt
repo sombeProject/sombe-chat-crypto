@@ -2,6 +2,7 @@
 // then run on the JVM with the host library: proves the bindings work from that Kotlin.
 import org.sombe.chatcrypto.AccessKeyGrant
 import org.sombe.chatcrypto.AccountRotationContent
+import org.sombe.chatcrypto.AliasVault
 import org.sombe.chatcrypto.ChatAccountKey
 import org.sombe.chatcrypto.ChatCrypto
 import org.sombe.chatcrypto.ChatCryptoException
@@ -14,6 +15,7 @@ import org.sombe.chatcrypto.OutgoingContent
 import org.sombe.chatcrypto.PinnedIdentity
 import org.sombe.chatcrypto.PinnedOlm
 import org.sombe.chatcrypto.ReceiptStatus
+import org.sombe.chatcrypto.RetiredAlias
 import org.sombe.chatcrypto.ScanResult
 import org.sombe.chatcrypto.SealedRecipient
 import org.sombe.chatcrypto.SealedSender
@@ -160,6 +162,15 @@ fun main() {
         check(false, "an epoch of 15 bytes must throw")
     } catch (e: ChatCryptoException.InvalidKey) {
         check(true, "an epoch of 15 bytes is refused")
+    }
+    // Since 0.13.0: an alias with digits, the old alias among the retired ones.
+    val withDigits = AliasVault(4L, "blaise.46", listOf(RetiredAlias("blaise", 1_796_000_000L)), listOf())
+    check(vaultKey.openVault(vaultKey.sealVault(withDigits)) == withDigits, "an alias with digits seals and opens")
+    try {
+        vaultKey.sealVault(withDigits.copy(alias = "blaise.046"))
+        check(false, "digits with a leading zero must throw")
+    } catch (e: ChatCryptoException.InvalidVault) {
+        check(true, "digits with a leading zero are refused")
     }
     val grant = AccessKeyGrant(accessKey, 1u)
     val accessKinds = listOf(

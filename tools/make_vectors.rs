@@ -9,6 +9,10 @@
 //! accounts, epochs refused), the normalization of an alias as the ChatPay API does it, and
 //! the seals the API makes from them. tests/seal_vectors.rs checks it.
 //!
+//! Also writes vectors/v10.json (since 0.13.0): aliases with digits (`blaise.46`) in the alias
+//! rule, the attestation, the `alias_change` content, the vault and its worst case, the
+//! normalization of the ChatPay API and the seal. tests/digits_vectors.rs checks it.
+//!
 //! vectors/v1.json to vectors/v7.json stay as they are and are still checked; their
 //! generators are in the history of this file (v7.json: commit 964067a). Never use these ids,
 //! seeds or keys for anything real.
@@ -20,9 +24,9 @@ use sha2::Sha256;
 use sombe_chat_crypto::alias_vectors;
 use sombe_chat_crypto::{
     alias_token_finalize, alias_token_memo, alias_token_verify, decode_content, derive_alias_vault_key,
-    encode_content, verify_alias_change, AliasTokenCheck, AliasVault, AliasVaultKey, ChatCryptoError,
-    ContentBinding, ContentBody, ContentChannel, OutgoingContent, RetiredAlias, TrustedAttestationKey,
-    VaultToken,
+    encode_content, verify_alias_attestation, verify_alias_change, AliasTokenCheck, AliasVault,
+    AliasVaultKey, ChatCryptoError, ContentBinding, ContentBody, ContentChannel, OutgoingContent,
+    RetiredAlias, TrustedAttestationKey, VaultToken,
 };
 use vodozemac::{base64_decode, base64_encode, Ed25519SecretKey};
 
@@ -67,6 +71,10 @@ fn main() {
 
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vectors/v9.json");
     std::fs::write(&path, serde_json::to_string_pretty(&seal_vectors()).unwrap() + "\n").unwrap();
+    println!("wrote {}", path.display());
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vectors/v10.json");
+    std::fs::write(&path, serde_json::to_string_pretty(&digits_vectors(&key)).unwrap() + "\n").unwrap();
     println!("wrote {}", path.display());
 }
 
@@ -643,4 +651,249 @@ fn binding_json(b: &ContentBinding) -> Value {
         "my_ed25519_key": b.my_ed25519_key,
         "legacy_conversation_id": b.legacy_conversation_id,
     })
+}
+
+/// The longest alias: a name of 20 bytes, a dot and 9 digits.
+const LONGEST: &str = "abcdefghijklmnopqrst.123456789";
+
+const ALIAS_ACCEPTED: &[&str] = &[
+    "abc",
+    "abcdefghijklmnopqrst",
+    "blaise46",
+    "blaise.46",
+    "blaise.01",
+    "blaise.99",
+    "blaise.100",
+    "ab_c.123456789",
+    LONGEST,
+];
+
+const ALIAS_REFUSED: &[(&str, &str)] = &[
+    ("blaise.00", "two digits are 01 to 99"),
+    ("blaise.046", "three digits or more never start with 0"),
+    ("blaise.4", "one digit"),
+    ("blaise.1234567890", "ten digits"),
+    ("blaise..46", "two dots"),
+    ("blaise.46.1", "two dots"),
+    ("blaise.4a", "a letter among the digits"),
+    ("blaise.", "a dot without digits"),
+    (".46", "digits without a name"),
+    ("ab.46", "a name of two letters"),
+    ("abcdefghijklmnopqrstu.12", "a name of 21 bytes"),
+    ("abcdefghijklmnopqrst.1234567890", "31 bytes"),
+    ("Blaise.46", "upper case"),
+    ("blaise-46", "a hyphen"),
+    ("blaise.+46", "a sign"),
+    ("blaise.\u{663}\u{666}", "Arabic Indic digits"),
+];
+
+/// What the ChatPay API's `normalizeAlias` gives since 0.13.0 (`trim`, `toLowerCase`, either
+/// form, then the five reserved words on the name, underscores removed): `None` when it refuses.
+/// Whether the alias can be taken is the API's rule, not the module's: it is not here.
+const DIGITS_NORMALIZATION: &[(&str, Option<&str>, &str)] = &[
+    ("blaise.46", Some("blaise.46"), "already normal"),
+    ("  Blaise.46\n", Some("blaise.46"), "spaces trimmed, lower case"),
+    ("blaise", Some("blaise"), "the form without digits is still read"),
+    ("blaise46", Some("blaise46"), "digits without a dot are part of the name"),
+    ("blaise.00", None, "00"),
+    ("blaise.046", None, "a leading zero"),
+    ("blaise . 46", None, "inner spaces"),
+    ("admin.12", None, "reserved name"),
+    ("s_o_m_b_e.12", None, "reserved name, underscores removed"),
+    ("binance.07", Some("binance.07"), "refused for a new alias, still normalized"),
+    ("admin12.34", Some("admin12.34"), "the reserved words are exact"),
+];
+
+fn attestation_text(kid: &str, alias: &str, account_id: &str, account: &str, expires: i64) -> String {
+    format!("SOMBE alias attestation v1\nkid:{kid}\nalias:{alias}\naccount_id:{account_id}\naccount:{account}\nexpires:{expires}")
+}
+
+fn digits_vectors(key: &AliasVaultKey) -> Value {
+    let v4: Value = serde_json::from_str(include_str!("../vectors/v4.json")).unwrap();
+    let case = &v4["accepted"][0];
+    let text = |name: &str| case[name].as_str().unwrap().to_owned();
+    let signing = &v4["signing_keys"][0];
+    assert_eq!(signing["kid"], "t1");
+    let seed: [u8; 32] = unhex_str(signing["seed_hex"].as_str().unwrap()).try_into().unwrap();
+    let signer = Ed25519SecretKey::from_slice(&seed);
+    let sign = |t: &str| bs58::encode(signer.sign(t.as_bytes()).to_bytes()).into_string();
+    let trusted: Vec<TrustedAttestationKey> = case["trusted_keys"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|k| TrustedAttestationKey {
+            kid: k["kid"].as_str().unwrap().to_owned(),
+            public_key: k["public_key"].as_str().unwrap().to_owned(),
+        })
+        .collect();
+    let account_id = text("sender_account_id");
+    let account = text("sender_account_public_key");
+    let deposited_at = text("deposited_at");
+    let expires = 1_794_916_800;
+
+    let check = |t: &str, signature: &str| {
+        verify_alias_attestation(
+            t.into(),
+            signature.into(),
+            trusted.clone(),
+            account_id.clone(),
+            account.clone(),
+            deposited_at.clone(),
+        )
+    };
+    let accepted: Vec<Value> = ["blaise.46", LONGEST]
+        .iter()
+        .map(|alias| {
+            let t = attestation_text("t1", alias, &account_id, &account, expires);
+            let signature = sign(&t);
+            assert_eq!(check(&t, &signature).unwrap(), *alias);
+            json!({ "alias": alias, "text": t, "signature": signature })
+        })
+        .collect();
+    let refused: Vec<Value> = [
+        ("blaise.046", "a leading zero"),
+        ("blaise.00", "00"),
+        ("blaise..46", "two dots"),
+        ("abcdefghijklmnopqrst.1234567890", "31 bytes"),
+    ]
+    .iter()
+    .map(|(alias, why)| {
+        let t = attestation_text("t1", alias, &account_id, &account, expires);
+        let signature = sign(&t);
+        let e = check(&t, &signature).unwrap_err();
+        json!({ "alias": alias, "why": why, "text": t, "signature": signature, "error": error_name(&e) })
+    })
+    .collect();
+
+    let change_text = s_of(&accepted[0]["text"]);
+    let change_signature = s_of(&accepted[0]["signature"]);
+    let sender_key = Ed25519SecretKey::from_slice(&SENDER_IDENTITY_SEED).public_key().to_base64();
+    let recipient_key = Ed25519SecretKey::from_slice(&RECIPIENT_IDENTITY_SEED).public_key().to_base64();
+    let plaintext = encode_content(OutgoingContent {
+        sender_account_id: account_id.clone(),
+        sender_ed25519_key: sender_key.clone(),
+        recipient_account_id: RECIPIENT.into(),
+        recipient_ed25519_key: recipient_key.clone(),
+        envelope_id: Some(ENVELOPE.into()),
+        body: ContentBody::AliasChange {
+            attestation: change_text.clone(),
+            attestation_signature: change_signature.clone(),
+        },
+    })
+    .unwrap();
+    let mailbox = ContentBinding {
+        channel: ContentChannel::Mailbox,
+        envelope_id: Some(ENVELOPE.into()),
+        sender_account_id: account_id.clone(),
+        sender_ed25519_key: sender_key,
+        my_account_id: RECIPIENT.into(),
+        my_ed25519_key: recipient_key,
+        legacy_conversation_id: None,
+    };
+    assert!(decode_content(plaintext.clone(), mailbox.clone()).is_ok());
+    let verified = verify_alias_change(
+        change_text,
+        change_signature,
+        trusted.clone(),
+        account_id.clone(),
+        account.clone(),
+        deposited_at.clone(),
+    )
+    .unwrap();
+    assert_eq!(verified.alias, "blaise.46");
+
+    let after = AliasVault {
+        seq: 4,
+        alias: "blaise.46".into(),
+        retired: vec![RetiredAlias { alias: "blaise".into(), retired_at: 1_796_000_000 }],
+        tokens: vec![],
+    };
+    let (after_json, _) = clear_of(&after);
+    let after_sealed = alias_vectors::seal_vault(key, after.clone(), VAULT_NONCE).unwrap();
+    let worst = AliasVault {
+        seq: 1 << 53,
+        alias: LONGEST.into(),
+        retired: (0..20)
+            .map(|i| RetiredAlias {
+                alias: format!("abcdefghijklmnopqrst.1{i:08}"),
+                retired_at: (1 << 53) - i,
+            })
+            .collect(),
+        tokens: (0..10u8)
+            .map(|i| VaultToken::Preparing {
+                key_id: "abcdefghijklmnop".into(),
+                nonce: base64_std(&[i; 64]),
+                blinded_msg: base64_std(&[0x11; 256]),
+                secret: base64_std(&[0x22; 256]),
+                idem: IDEM.into(),
+                burn_signature: Some("1".repeat(90)),
+            })
+            .collect(),
+    };
+    let (worst_json, _) = clear_of(&worst);
+    assert_eq!(worst_json.len(), 11_774);
+    let worst_sealed = alias_vectors::seal_vault(key, worst.clone(), VAULT_NONCE).unwrap();
+    let mut refused_vault = after.clone();
+    refused_vault.alias = "blaise.046".into();
+    assert_eq!(key.seal_vault(refused_vault), Err(ChatCryptoError::InvalidVault));
+
+    for alias in ALIAS_ACCEPTED {
+        let mut v = after.clone();
+        v.alias = (*alias).into();
+        v.retired.clear();
+        assert!(key.seal_vault(v).is_ok(), "{alias}");
+    }
+    for (alias, _) in ALIAS_REFUSED {
+        let mut v = after.clone();
+        v.alias = (*alias).into();
+        v.retired.clear();
+        assert_eq!(key.seal_vault(v), Err(ChatCryptoError::InvalidVault), "{alias}");
+    }
+
+    let secret = key.alias_seal_secret(base64_std(&EPOCH)).unwrap();
+    let seals: Vec<Value> = ["blaise.46", LONGEST]
+        .iter()
+        .map(|alias| json!({ "account_id": ACCOUNT, "epoch": base64_std(&EPOCH), "secret": secret, "alias": alias, "seal": seal(&secret, alias) }))
+        .collect();
+
+    json!({
+        "description": "SOMBE test vectors of sombe-chat-crypto 0.13.0: aliases with digits. The alias rule reads two forms, a name ^[a-z][a-z0-9_]{2,19}$ (the form before 0.13.0) or a name, a dot and digits \\.(0[1-9]|[1-9][0-9]|[1-9][0-9]{2,8}), 30 bytes at most; alias_rule.refused is refused by the attestation, the alias_change and the vault. The attestation (kid t1 of vectors/v4.json, same account and dates as accepted[0] there) with an alias with digits, accepted and refused; the alias_change content bound to it; the vault after an alias got its digits (the old alias among the retired) and its worst case (json_bytes 11 774, still within 16 341), sealed with the vault key and nonce of vectors/v8.json; the normalization of the ChatPay API's normalizeAlias (alias null when refused; input_utf8_hex is the exact input; whether an alias can be taken is not the module's rule); and the seal of an alias with digits, HMAC-SHA256(secret, alias), with the secret of vectors/v9.json. The vault format stays v 1. Test seeds only.",
+        "alias_rule": {
+            "accepted": ALIAS_ACCEPTED,
+            "refused": ALIAS_REFUSED.iter().map(|(alias, why)| json!({ "alias": alias, "utf8_hex": hex(alias.as_bytes()), "why": why })).collect::<Vec<_>>(),
+        },
+        "attestation": {
+            "trusted_keys": case["trusted_keys"],
+            "sender_account_id": account_id,
+            "sender_account_public_key": account,
+            "deposited_at": deposited_at,
+            "expires": expires,
+            "accepted": accepted,
+            "refused": refused,
+        },
+        "alias_change": {
+            "bound": { "plaintext": plaintext, "binding": binding_json(&mailbox) },
+            "alias": verified.alias,
+            "expires": verified.expires,
+        },
+        "vault": {
+            "wallet_seed_hex": hex(&WALLET_SEED),
+            "account_id": ACCOUNT,
+            "vault_nonce_hex": hex(&VAULT_NONCE),
+            "after_digits": { "vault": vault_json(&after), "json": after_json, "sealed": after_sealed },
+            "worst_case": { "json_bytes": worst_json.len(), "sealed": worst_sealed, "vault": vault_json(&worst) },
+        },
+        "normalization": DIGITS_NORMALIZATION.iter().map(|(input, alias, why)| {
+            json!({ "input": input, "input_utf8_hex": hex(input.as_bytes()), "alias": alias, "why": why })
+        }).collect::<Vec<_>>(),
+        "seals": seals,
+    })
+}
+
+fn s_of(v: &Value) -> String {
+    v.as_str().unwrap().to_owned()
+}
+
+fn unhex_str(text: &str) -> Vec<u8> {
+    (0..text.len()).step_by(2).map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap()).collect()
 }
