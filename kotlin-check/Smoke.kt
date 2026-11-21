@@ -2,6 +2,7 @@
 // then run on the JVM with the host library: proves the bindings work from that Kotlin.
 import org.sombe.chatcrypto.AccessKeyGrant
 import org.sombe.chatcrypto.AccountRotationContent
+import org.sombe.chatcrypto.AliasVault
 import org.sombe.chatcrypto.ChatAccountKey
 import org.sombe.chatcrypto.ChatCrypto
 import org.sombe.chatcrypto.ChatCryptoException
@@ -14,6 +15,7 @@ import org.sombe.chatcrypto.OutgoingContent
 import org.sombe.chatcrypto.PinnedIdentity
 import org.sombe.chatcrypto.PinnedOlm
 import org.sombe.chatcrypto.ReceiptStatus
+import org.sombe.chatcrypto.RetiredAlias
 import org.sombe.chatcrypto.ScanResult
 import org.sombe.chatcrypto.SealedRecipient
 import org.sombe.chatcrypto.SealedSender
