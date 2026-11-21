@@ -61,6 +61,9 @@ functions; nothing that 0.10.0 writes or reads changes. A 0.10.0 module reads th
 `alias_change` kind as `UnsupportedContent` (authentic, not shown). `vectors/v7.json` is
 frozen in turn.
 
+0.12.0 adds the secret of the alias seal (*Alias seal*), one new method on `AliasVaultKey`.
+Nothing that 0.11.0 writes or reads changes; `vectors/v8.json` is frozen in turn.
+
 `vectors/v1.json` holds test vectors written by 0.4.0 (its identity statement and safety
 number are no longer read since 0.7.0; its keys, sessions and version 1 contents still
 are), `vectors/v2.json` those of content version 2 (since 0.5.0; wallet card and payment
@@ -579,6 +582,30 @@ fourteen blocks refused with their error, the worst case, two nonces whose text 
 order differ, a token prepared, signed, finalized and verified (with refusals), its memo,
 and the `alias_change` content. The signing key of the test is in
 `vectors/alias-token-test-key.json`. The ChatPay and wallet APIs replay it.
+
+## Alias seal (since 0.12.0)
+
+The seal lets an account prove its alias again after the ChatPay API lost the key of its
+alias fingerprints. The phone never makes a seal: it gives the server a secret with the alias,
+the server computes `HMAC-SHA256(secret, normalized alias)` for the alias it really grants,
+keeps that seal and forgets the secret.
+
+- **Epoch.** 16 random bytes drawn by the phone at the first seal and again at every alias
+  changed, sent as `seal_epoch` (base64 standard with padding). The server returns it so a
+  restored phone finds the same secret.
+- **Secret.** `AliasVaultKey.alias_seal_secret(epoch)`: HKDF-SHA256 over the alias vault key,
+  empty salt, info `sombe:alias_seal:1:`, the 16 epoch bytes, then the account id (36 ASCII
+  characters), 32 bytes in base64 standard with padding. The vault key comes from the wallet
+  seed, so the recovery phrase gives the secret back; the phone derives it when it needs it
+  and never keeps it. The account id in the info means two accounts of one wallet never give
+  the same secret for the same epoch, so a server that replays an epoch learns nothing.
+- An epoch that is not 16 bytes in canonical base64 with padding is `InvalidKey`.
+- The secret leaves the module as a JVM string that cannot be erased: never log it.
+
+`vectors/v9.json` holds three secrets (two epochs of one account, the same epoch for another
+account), epochs refused, the normalization of an alias as the ChatPay API's `normalizeAlias`
+does it (JavaScript `trim` and `toLowerCase`, which differ from Rust's on U+FEFF and U+0085),
+and the seals the API makes. The ChatPay API replays it.
 
 ## Envelope
 

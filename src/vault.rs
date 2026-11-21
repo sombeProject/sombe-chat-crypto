@@ -41,6 +41,8 @@ const KEY_INFO: &[u8] = b"sombe:alias_vault:1";
 const KEY_SEAL_AAD: &str = "sombe:alias_vault_key_seal:v1";
 const VAULT_AAD: &[u8] = b"sombe alias vault v1";
 const SEALED_KEY_BYTES: usize = 1 + NONCE_BYTES + KEY_BYTES + TAG_BYTES;
+const SEAL_INFO: &[u8] = b"sombe:alias_seal:1:";
+const SEAL_EPOCH_BYTES: usize = 16;
 
 /// An alias given up, kept so the person can take it back.
 #[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
@@ -144,6 +146,25 @@ impl AliasVaultKey {
     pub fn seal_vault(&self, vault: AliasVault) -> Result<String> {
         let nonce = random_nonce()?;
         self.seal_vault_with_nonce(vault, &nonce)
+    }
+
+    /// The secret of the alias seal for `epoch` (since 0.12.0): HKDF-SHA256 over this key,
+    /// empty salt, info `sombe:alias_seal:1:`, the 16 bytes of the epoch, then the account id;
+    /// 32 bytes in base64 with padding. `epoch` is 16 bytes in base64 with padding, anything
+    /// else is `InvalidKey`. Sent with the alias, never kept, never logged.
+    pub fn alias_seal_secret(&self, epoch: String) -> Result<String> {
+        let epoch =
+            b64::decode_exact(&epoch, SEAL_EPOCH_BYTES).ok_or_else(|| ChatCryptoError::InvalidKey {
+                reason: "seal epoch must be 16 bytes in base64 with padding".to_owned(),
+            })?;
+        let mut info = Vec::with_capacity(SEAL_INFO.len() + SEAL_EPOCH_BYTES + self.account_id.len());
+        info.extend_from_slice(SEAL_INFO);
+        info.extend_from_slice(&epoch);
+        info.extend_from_slice(self.account_id.as_bytes());
+        let mut secret = Zeroizing::new([0u8; KEY_BYTES]);
+        hkdf_sha256(&[], self.key.as_slice(), &info, secret.as_mut_slice())
+            .expect("32 bytes is a valid HKDF length");
+        Ok(b64::encode(secret.as_slice()))
     }
 
     /// Opens a block written by `seal_vault`. A format byte or a schema `v` that this module
@@ -914,5 +935,37 @@ mod tests {
         assert_eq!(derived.key.as_slice(), expected);
         assert!(derive(vec![1; 31], ACCOUNT.into()).is_err());
         assert!(derive(vec![1; 32], "A1A1A1A1-0000-4000-8000-0000000000A1".into()).is_err());
+    }
+
+    #[test]
+    fn the_seal_secret_comes_from_the_key_the_epoch_and_the_account() {
+        let key = derive([0x0bu8; 32].to_vec(), ACCOUNT.into()).unwrap();
+        let epoch = [0x5eu8; 16];
+        let mut info = b"sombe:alias_seal:1:".to_vec();
+        info.extend_from_slice(&epoch);
+        info.extend_from_slice(ACCOUNT.as_bytes());
+        let mut expected = [0u8; 32];
+        hkdf_sha256(&[], key.key.as_slice(), &info, &mut expected).unwrap();
+        let secret = key.alias_seal_secret(b64::encode(&epoch)).unwrap();
+        assert_eq!(b64::decode(&secret).unwrap(), expected);
+
+        assert_ne!(key.alias_seal_secret(b64::encode(&[0x5f; 16])).unwrap(), secret);
+        let other = derive([0x0bu8; 32].to_vec(), "b2b2b2b2-0000-4000-8000-0000000000b2".into()).unwrap();
+        assert_ne!(other.alias_seal_secret(b64::encode(&epoch)).unwrap(), secret);
+
+        let sealed = key.seal_key(vec![9; 32]).unwrap();
+        let unsealed = AliasVaultKey::unseal(sealed, vec![9; 32], ACCOUNT.into()).unwrap();
+        assert_eq!(unsealed.alias_seal_secret(b64::encode(&epoch)).unwrap(), secret);
+    }
+
+    #[test]
+    fn a_seal_epoch_other_than_16_canonical_bytes_is_refused() {
+        let key = derive([0x0bu8; 32].to_vec(), ACCOUNT.into()).unwrap();
+        let unpadded = b64::encode(&[1; 16]).trim_end_matches('=').to_owned();
+        let mut loose = b64::encode(&[1; 16]);
+        loose.replace_range(21..22, "R");
+        for epoch in [b64::encode(&[1; 15]), b64::encode(&[1; 17]), unpadded, loose, String::new()] {
+            assert!(matches!(key.alias_seal_secret(epoch), Err(ChatCryptoError::InvalidKey { .. })));
+        }
     }
 }

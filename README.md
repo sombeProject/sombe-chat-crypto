@@ -8,7 +8,7 @@ no business logic: no networking, no storage, no payments.
 - [PROTOCOL.md](PROTOCOL.md): the account key drawn from the wallet, identity signed by
   that key, one time keys, envelope, content format, session rules, identity pinning and
   rotation, safety number, (since 0.10.0) the sealed sender and (since 0.11.0) the alias
-  vault and the alias token.
+  vault and the alias token, (since 0.12.0) the alias seal.
 - [vectors/v1.json](vectors/v1.json): test vectors written by 0.4.0 (frozen).
 - [vectors/v2.json](vectors/v2.json): content version 2, one vector per kind (since 0.5.0; wallet card and payments since 0.6.0).
 - [vectors/v3.json](vectors/v3.json): the account key, the texts it signs, its rotation and the safety number v2 (since 0.7.0).
@@ -16,6 +16,7 @@ no business logic: no networking, no storage, no payments.
 - [vectors/v5.json](vectors/v5.json): content version 4 with its binding, account ids and identity keys (since 0.8.1, frozen).
 - [vectors/v6.json](vectors/v6.json): the access key and its verifier, the `access_key` content and an acceptance with and without an access key (since 0.9.0, frozen).
 - [vectors/v7.json](vectors/v7.json): the identity statement v4, a sealing key and its pickle, envelopes sealed and refused, the `identity_statement` content (since 0.10.0).
+- [vectors/v9.json](vectors/v9.json): the secret of the alias seal (two epochs, two accounts, epochs refused), the normalization of an alias as the ChatPay API does it, and the seals the API makes (since 0.12.0).
 - [vectors/v8.json](vectors/v8.json): the alias vault (key, block, blocks refused), the alias token (RFC 9474, prepared, signed blind, finalized, memo) and the `alias_change` content (since 0.11.0). Signing key: [vectors/alias-token-test-key.json](vectors/alias-token-test-key.json); the RFC 9474 test vector: [vectors/rfc9474-pss-randomized.json](vectors/rfc9474-pss-randomized.json).
 - [vectors/rfc9180-base-x25519-sha256-chacha20poly1305.json](vectors/rfc9180-base-x25519-sha256-chacha20poly1305.json): the RFC 9180 test vectors of the one HPKE suite the sealed sender uses, unchanged from the CFRG file (source and SHA-256 inside).
 
@@ -23,8 +24,8 @@ no business logic: no networking, no storage, no payments.
 
 ```bash
 cargo test                                        # Rust tests and test vectors
-cargo test --features vectors                     # also checks v8.json is what the module writes
-cargo run --features vectors --bin make-vectors   # regenerates vectors/v8.json (deterministic); v1.json to v7.json are frozen
+cargo test --features vectors                     # also checks v8.json and v9.json are what the module writes
+cargo run --features vectors --bin make-vectors   # regenerates vectors/v8.json and v9.json (deterministic); v1.json to v7.json are frozen
 ```
 
 vodozemac is a crates.io dependency pinned with `=`, never copied into this repository.
@@ -120,6 +121,7 @@ val vaultKey = deriveAliasVaultKey(walletSecret, myAccountId)       // never ret
 val sealedVaultKey = vaultKey.sealKey(sealingKey)                   // kept by the Keystore
 val block = vaultKey.sealVault(AliasVault(seq, alias, retired, tokens)) // 16 384 bytes, base64 with padding
 val vault = vaultKey.openVault(block)                               // InvalidVault / UnsupportedVault
+val sealSecret = vaultKey.aliasSealSecret(sealEpoch)                // since 0.12.0, sent with the alias, never kept
 val prepared = aliasTokenPrepare(trustedSpki, keyId, burnIdempotencyKey) // put it in the vault, then pay
 val memo = aliasTokenMemo(prepared.blindedMsg)                      // "sombe-alias-token:<43>"
 val tokenSignature = aliasTokenFinalize(trustedSpki, prepared.nonce, prepared.blindedMsg,

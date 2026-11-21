@@ -27,6 +27,7 @@ import org.sombe.chatcrypto.compareScannedSafetyCode
 import org.sombe.chatcrypto.decodeContent
 import org.sombe.chatcrypto.deriveAccessKey
 import org.sombe.chatcrypto.deriveAccountKey
+import org.sombe.chatcrypto.deriveAliasVaultKey
 import org.sombe.chatcrypto.encodeContent
 import org.sombe.chatcrypto.proveRotation
 import org.sombe.chatcrypto.safetyNumber
@@ -147,6 +148,18 @@ fun main() {
         check(false, "a profile key of 31 bytes must throw")
     } catch (e: ChatCryptoException.InvalidKey) {
         check(true, "a profile key of 31 bytes is refused")
+    }
+    // Since 0.12.0: the secret of the alias seal, from the vault key and an epoch.
+    val vaultKey = deriveAliasVaultKey(ByteArray(32) { 0x77 }, "a1a1a1a1-0000-4000-8000-0000000000a1")
+    check(
+        vaultKey.aliasSealSecret("4eHh4eHh4eHh4eHh4eHh4Q==") == "1hjN8eW1zSOCEuOWjEDOpTijTyGPwYt+U5vSuL9/N7M=",
+        "the seal secret matches vectors/v9.json",
+    )
+    try {
+        vaultKey.aliasSealSecret("AQEBAQEBAQEBAQEBAQEB")
+        check(false, "an epoch of 15 bytes must throw")
+    } catch (e: ChatCryptoException.InvalidKey) {
+        check(true, "an epoch of 15 bytes is refused")
     }
     val grant = AccessKeyGrant(accessKey, 1u)
     val accessKinds = listOf(

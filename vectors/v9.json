@@ -1,0 +1,244 @@
+{
+  "description": "SOMBE test vectors of sombe-chat-crypto 0.12.0: the secret of the alias seal, HKDF-SHA256 over the alias vault key of vectors/v8.json (wallet seed 0x77 repeated, derive_alias_vault_key), empty salt, info `sombe:alias_seal:1:`, the 16 epoch bytes, then the account id, 32 bytes; epochs refused; the normalization of an alias as the ChatPay API's normalizeAlias does it (alias null when refused; input_utf8_hex is the exact input); and the seal the API keeps, HMAC-SHA256(secret, normalized alias). Epoch, secret and seal are base64 standard with padding. Test seeds only.",
+  "wallet_seed": "7777777777777777777777777777777777777777777777777777777777777777",
+  "secrets": [
+    {
+      "account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+      "epoch": "4eHh4eHh4eHh4eHh4eHh4Q==",
+      "secret": "1hjN8eW1zSOCEuOWjEDOpTijTyGPwYt+U5vSuL9/N7M="
+    },
+    {
+      "account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+      "epoch": "4uLi4uLi4uLi4uLi4uLi4g==",
+      "secret": "W+1xaejNeN3qOJyPbujcbDArKRjnsDD/s9OVi/qsJNA="
+    },
+    {
+      "account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+      "epoch": "4eHh4eHh4eHh4eHh4eHh4Q==",
+      "secret": "/orhcIqeqY9MZCtgjtbT17g+9kFAEVdnsrVOfUv4OHI="
+    }
+  ],
+  "refused_epochs": [
+    {
+      "epoch": "4eHh4eHh4eHh4eHh4eHh",
+      "why": "15 bytes",
+      "error": "InvalidKey"
+    },
+    {
+      "epoch": "4eHh4eHh4eHh4eHh4eHh4eE=",
+      "why": "17 bytes",
+      "error": "InvalidKey"
+    },
+    {
+      "epoch": "4eHh4eHh4eHh4eHh4eHh4Q",
+      "why": "no padding",
+      "error": "InvalidKey"
+    },
+    {
+      "epoch": "4eHh4eHh4eHh4eHh4eHh4R==",
+      "why": "not canonical",
+      "error": "InvalidKey"
+    },
+    {
+      "epoch": "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+      "why": "hex, not base64",
+      "error": "InvalidKey"
+    }
+  ],
+  "normalization": [
+    {
+      "input": "margincall",
+      "input_utf8_hex": "6d617267696e63616c6c",
+      "alias": "margincall",
+      "why": "already normal"
+    },
+    {
+      "input": "  MarginCall  ",
+      "input_utf8_hex": "20204d617267696e43616c6c2020",
+      "alias": "margincall",
+      "why": "spaces trimmed, lower case"
+    },
+    {
+      "input": "\tbob_42\n",
+      "input_utf8_hex": "09626f625f34320a",
+      "alias": "bob_42",
+      "why": "tab and line feed trimmed"
+    },
+    {
+      "input": " alice　",
+      "input_utf8_hex": "c2a0616c696365e38080",
+      "alias": "alice",
+      "why": "no break space and ideographic space trimmed"
+    },
+    {
+      "input": "﻿alice",
+      "input_utf8_hex": "efbbbf616c696365",
+      "alias": "alice",
+      "why": "JavaScript trims U+FEFF (Rust trim does not)"
+    },
+    {
+      "input": " alice ",
+      "input_utf8_hex": "e280a8616c696365e280a9",
+      "alias": "alice",
+      "why": "line and paragraph separators trimmed"
+    },
+    {
+      "input": "alice",
+      "input_utf8_hex": "c285616c696365",
+      "alias": null,
+      "why": "JavaScript keeps U+0085 (Rust trim removes it)"
+    },
+    {
+      "input": "alice​",
+      "input_utf8_hex": "616c696365e2808b",
+      "alias": null,
+      "why": "a zero width space is not trimmed"
+    },
+    {
+      "input": "Kelvin",
+      "input_utf8_hex": "e284aa656c76696e",
+      "alias": "kelvin",
+      "why": "the Kelvin sign lowers to k"
+    },
+    {
+      "input": "İstanbul",
+      "input_utf8_hex": "c4b07374616e62756c",
+      "alias": null,
+      "why": "U+0130 lowers to i and a combining dot"
+    },
+    {
+      "input": "ａlice",
+      "input_utf8_hex": "efbd816c696365",
+      "alias": null,
+      "why": "full width letters stay full width"
+    },
+    {
+      "input": "ab",
+      "input_utf8_hex": "6162",
+      "alias": null,
+      "why": "too short"
+    },
+    {
+      "input": "abc",
+      "input_utf8_hex": "616263",
+      "alias": "abc",
+      "why": "shortest"
+    },
+    {
+      "input": "a1234567890123456789",
+      "input_utf8_hex": "6131323334353637383930313233343536373839",
+      "alias": "a1234567890123456789",
+      "why": "longest"
+    },
+    {
+      "input": "a12345678901234567890",
+      "input_utf8_hex": "613132333435363738393031323334353637383930",
+      "alias": null,
+      "why": "too long"
+    },
+    {
+      "input": "1alice",
+      "input_utf8_hex": "31616c696365",
+      "alias": null,
+      "why": "starts with a digit"
+    },
+    {
+      "input": "_alice",
+      "input_utf8_hex": "5f616c696365",
+      "alias": null,
+      "why": "starts with an underscore"
+    },
+    {
+      "input": "ali-ce",
+      "input_utf8_hex": "616c692d6365",
+      "alias": null,
+      "why": "hyphen"
+    },
+    {
+      "input": "ali ce",
+      "input_utf8_hex": "616c69206365",
+      "alias": null,
+      "why": "inner space"
+    },
+    {
+      "input": "binance",
+      "input_utf8_hex": "62696e616e6365",
+      "alias": "binance",
+      "why": "refused for a new alias, still normalized (a held alias keeps its seal)"
+    },
+    {
+      "input": "admin",
+      "input_utf8_hex": "61646d696e",
+      "alias": null,
+      "why": "reserved"
+    },
+    {
+      "input": "Support",
+      "input_utf8_hex": "537570706f7274",
+      "alias": null,
+      "why": "reserved, after lower case"
+    },
+    {
+      "input": "s_o_m_b_e",
+      "input_utf8_hex": "735f6f5f6d5f625f65",
+      "alias": null,
+      "why": "reserved, underscores removed"
+    },
+    {
+      "input": "system",
+      "input_utf8_hex": "73797374656d",
+      "alias": null,
+      "why": "reserved"
+    },
+    {
+      "input": "wallet",
+      "input_utf8_hex": "77616c6c6574",
+      "alias": null,
+      "why": "reserved"
+    }
+  ],
+  "seals": [
+    {
+      "account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+      "epoch": "4eHh4eHh4eHh4eHh4eHh4Q==",
+      "secret": "1hjN8eW1zSOCEuOWjEDOpTijTyGPwYt+U5vSuL9/N7M=",
+      "alias": "margincall",
+      "seal": "+kvvDMOoK3jWMm+notDU+nnijstQPSUHo8/0oqy0zvk="
+    },
+    {
+      "account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+      "epoch": "4eHh4eHh4eHh4eHh4eHh4Q==",
+      "secret": "1hjN8eW1zSOCEuOWjEDOpTijTyGPwYt+U5vSuL9/N7M=",
+      "alias": "bob_42",
+      "seal": "Q2SYJPHMRMeSR5uYSqY8ov1GojL+J2ffPFbbtoGHYMM="
+    },
+    {
+      "account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+      "epoch": "4uLi4uLi4uLi4uLi4uLi4g==",
+      "secret": "W+1xaejNeN3qOJyPbujcbDArKRjnsDD/s9OVi/qsJNA=",
+      "alias": "margincall",
+      "seal": "HYVgaRBSbqzibiK8gmN8wgvVJk44r4WbW4z5Ok5imW0="
+    },
+    {
+      "account_id": "a1a1a1a1-0000-4000-8000-0000000000a1",
+      "epoch": "4uLi4uLi4uLi4uLi4uLi4g==",
+      "secret": "W+1xaejNeN3qOJyPbujcbDArKRjnsDD/s9OVi/qsJNA=",
+      "alias": "bob_42",
+      "seal": "B8Y4kH9qCabtvqSv8Q28SlvksHZ7YASjweavXK4wD2U="
+    },
+    {
+      "account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+      "epoch": "4eHh4eHh4eHh4eHh4eHh4Q==",
+      "secret": "/orhcIqeqY9MZCtgjtbT17g+9kFAEVdnsrVOfUv4OHI=",
+      "alias": "margincall",
+      "seal": "RLx2a/ST8qfbroFQKWDfMrjpnd0AkaI7912GyeMb8uA="
+    },
+    {
+      "account_id": "b2b2b2b2-0000-4000-8000-0000000000b2",
+      "epoch": "4eHh4eHh4eHh4eHh4eHh4Q==",
+      "secret": "/orhcIqeqY9MZCtgjtbT17g+9kFAEVdnsrVOfUv4OHI=",
+      "alias": "bob_42",
+      "seal": "e9o8qN2mplBSLE85V36dvWAii/ia+/vLQNohxl2Z3Bw="
+    }
+  ]
+}
